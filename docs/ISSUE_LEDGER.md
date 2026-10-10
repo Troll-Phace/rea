@@ -1,27 +1,27 @@
 # PSX issue ledger
 
 Canonical offline ledger. Batch psx-support-2026-10. Next ID: PSX-008.
-No GitHub issue numbers are assigned. Phase 1 technical acceptance and review passed; PR #1 is open; approved merge remains pending. Later phases remain planned and unauthorized.
+No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR #1; PSX-001 is closed. PSX-006/PSX-007 remain open downstream blockers. Later phases remain planned and unauthorized.
 
-| ID      | Type    | Severity | Status      | Phase | Title                                               |
-| ------- | ------- | -------- | ----------- | ----- | --------------------------------------------------- |
-| PSX-001 | feature | high     | in-progress | 1     | Format and loader contract                          |
-| PSX-002 | feature | high     | open        | 2     | Deterministic Ghidra PSX import                     |
-| PSX-003 | feature | high     | open        | 3     | Independent memory and entry evidence               |
-| PSX-004 | feature | medium   | open        | 4     | MIPS queries and public contract parity             |
-| PSX-005 | test    | high     | open        | 5     | Real-provider, package and local acceptance         |
-| PSX-006 | bug     | high     | open        | 2     | Installed PSX RAM option value-class mismatch       |
-| PSX-007 | feature | high     | open        | 3     | Installed PSX loader lacks original file provenance |
+| ID      | Type    | Severity | Status | Phase | Title                                               |
+| ------- | ------- | -------- | ------ | ----- | --------------------------------------------------- |
+| PSX-001 | feature | high     | closed | 1     | Format and loader contract                          |
+| PSX-002 | feature | high     | open   | 2     | Deterministic Ghidra PSX import                     |
+| PSX-003 | feature | high     | open   | 3     | Independent memory and entry evidence               |
+| PSX-004 | feature | medium   | open   | 4     | MIPS queries and public contract parity             |
+| PSX-005 | test    | high     | open   | 5     | Real-provider, package and local acceptance         |
+| PSX-006 | bug     | high     | open   | 2     | Installed PSX RAM option value-class mismatch       |
+| PSX-007 | feature | high     | open   | 3     | Installed PSX loader lacks original file provenance |
 
 ## PSX-001 — Format and loader contract
 
-- Status: in-progress; type: feature; severity: high; phase: 1.
+- Status: closed; type: feature; severity: high; phase: 1.
 - Owner: orchestrator, with task delegation per PLAN.md.
 - Evidence: parser/identity and deep-provider rejection implemented and verified. [Phase 1 results](active/phase-1-results.md) records exact checks, final seven-case macOS synthetic Ghidra matrix, actual loader/asset/report digests and verified cleanup. [Shared plan](active/phase-1-plan.md) and [research supplement](active/phase-1-loader-supplement.md) remain the execution contract. One bounded close review found no new blockers.
-- Dependencies: pinned toolchain established with explicit repository-local user authorization; technical gates passed. PR #1 is open; approved merge remains pending.
+- Dependencies: pinned toolchain established with explicit repository-local user authorization; technical gates passed. Approved PR #1 merge verified; all closure criteria satisfied.
 - Done-criteria: Validated parser and identity contracts; negative format cases; measured loader contract from synthetic real Ghidra import; Phase 1 exact checks and delivery satisfied.
 - Tasks and exact verification contract: [shared Phase 1 plan](active/phase-1-plan.md), P1-00/P1-11/P1-12/P1-13/P1-21/P1-22/P1-90; overview in PLAN.md. Measured loader facts and downstream blockers are frozen in the versioned results; production defaults/profile and source-backed attestation remain future gates.
-- Closure evidence/date/commit/PR: technical acceptance recorded 2026-10-09; final report SHA256 `692d534401d9fd7685025973614f2399c339a2bf7e36d77371ea6b2bef1628ff`. Implementation commit `0a8b033ac7bbd2f6e6a5f8f48b55504463f3f000`; [PR #1](https://github.com/Troll-Phace/rea/pull/1) open. Still in progress pending approved merge; no closure claimed.
+- Closure evidence/date/commit/PR: technical acceptance recorded 2026-10-09; final report SHA256 `692d534401d9fd7685025973614f2399c339a2bf7e36d77371ea6b2bef1628ff`. Implementation commit `0a8b033ac7bbd2f6e6a5f8f48b55504463f3f000`; [PR #1](https://github.com/Troll-Phace/rea/pull/1) merged at `7fdb2657cb9839e56272763a3d1a0e19fd5041d6` on 2026-10-09 (2026-10-10T03:02:01Z), after user approval. Verified current head `920fe67ced432fbe405181f15a17d446030f3492`, clean merge requirements and passing `npm run check`; GitHub merged state and remote/local main synchronization confirmed. Closed 2026-10-09; downstream PSX-006/PSX-007 remain open.
 
 ## PSX-002 — Deterministic Ghidra PSX import
 

@@ -1,6 +1,6 @@
 # PSX support progress
 
-Batch: psx-support-2026-10. Active phase: Phase 1 (technical acceptance complete; PR/merge delivery pending). Scaffold status: complete and locally validated. Branch: `codex/psx-phase-1`, baseline `7aa4d768`. Technical acceptance and bounded close review passed; implementation commit `0a8b033ac7bbd2f6e6a5f8f48b55504463f3f000` pushed and [PR #1](https://github.com/Troll-Phace/rea/pull/1) opened. Merge remains pending user approval of this concrete PR.
+Batch: psx-support-2026-10. Active phase: Phase 1 complete; Phase 2 planned and unauthorized. Scaffold status: complete and locally validated. Delivery branch: `codex/psx-phase-1`, baseline `7aa4d768`; current checkout `main`. Technical acceptance and bounded close review passed; implementation commit `0a8b033ac7bbd2f6e6a5f8f48b55504463f3f000` pushed and [PR #1](https://github.com/Troll-Phace/rea/pull/1) opened. The user approved this PR and it merged at `7fdb2657cb9839e56272763a3d1a0e19fd5041d6` on 2026-10-09 (2026-10-10T03:02:01Z).
 
 ## Planning and implementation history
 
@@ -33,14 +33,16 @@ Batch: psx-support-2026-10. Active phase: Phase 1 (technical acceptance complete
 ## Delivery checkpoint
 
 - Implementation commit: `0a8b033ac7bbd2f6e6a5f8f48b55504463f3f000`, Conventional subject `feat(psx): recognize executable identity and measure loader contract`.
-- Branch pushed to `origin/codex/psx-phase-1`; [PR #1](https://github.com/Troll-Phace/rea/pull/1) is open and attached to the chat. Auto-merge is disabled. No remote checks were advertised at initial PR inspection; required local checks and repository hooks passed.
-- This follow-up records the actual PR/commit outcome and formats one test expression rewritten by the pre-commit linter; its focused MCP suite and full static checks passed before branch push. Recheck current PR head/checks after user approval; no merge is claimed.
+- Branch pushed to `origin/codex/psx-phase-1`; [PR #1](https://github.com/Troll-Phace/rea/pull/1) was opened and attached to the chat. No remote checks were advertised; required local checks and repository hooks passed.
+- This follow-up records the actual PR/commit outcome and formats one test expression rewritten by the pre-commit linter; its focused MCP suite and full static checks passed before branch push. After user approval, current head `920fe67ced432fbe405181f15a17d446030f3492` and merge requirements were verified; `npm run check` passed before normal merge. GitHub confirmed merge commit `7fdb2657cb9839e56272763a3d1a0e19fd5041d6`; local `main` fast-forwarded to the remote merge.
+
+- PSX-001 closed with complete technical/review/approved-merge evidence. This documentation-only reconciliation records the verified closure; relevant checks and branch push follow the direct-main exception. No application code is changed.
 
 ## Pending
 
 - User authorized Phase 1 with “begin” and then explicitly approved a repository-local Node 24.18.0/npm 11.16.0 installation exception under `.agent-runtime/toolchain`, after automatic approval review rejected the initial installation. Global software and provider installations remain unchanged; P1-00 prerequisites are complete.
-- Phase 1 technical acceptance and review passed; Approved merge remains pending. Later application phases, actual PSX public-provider support, Linux loader lane, local AC3 pilot and package/client integration remain unperformed and unauthorized.
-- Final delivery checks use the verified local pinned toolchain; the ambient older toolchain is unchanged. PSX-001 remains in progress until all delivery criteria, including approved merge, are satisfied.
+- Phase 1 is complete and merged. Later application phases, actual PSX public-provider support, Linux loader lane, local AC3 pilot and package/client integration remain unperformed and unauthorized.
+- Final delivery checks use the verified local pinned toolchain; the ambient older toolchain is unchanged. PSX-001 is closed; PSX-006 and PSX-007 retain their downstream acceptance criteria.
 - New project-rooted client pilot for agent/skill discovery; hook definitions configured; automatic execution pending lifecycle/trust pilot.
 - Skill-creator quick validation could not run because the current Python lacks PyYAML; configured repository harness validation covers its existing structural checks only. Planner write permissions and saved-file handoff discovery still require a fresh client pilot.
 
@@ -50,4 +52,4 @@ User selected local issue management on 2026-10-09. docs/ISSUE_LEDGER.md is cano
 
 ## Next action
 
-Await user approval of [PR #1](https://github.com/Troll-Phace/rea/pull/1), then verify current-head checks and merge through the established workflow; Phase 2 is not authorized and requires a new plan accounting for PSX-006/PSX-007 and the measured register/fill/mapping limitations.
+Await the user’s next phase direction. Phase 2 requires a newly authorized shared plan accounting for PSX-006/PSX-007 and the measured register/fill/mapping limitations; no new batch rollover or later-phase implementation is started.

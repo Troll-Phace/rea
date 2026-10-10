@@ -1,6 +1,6 @@
 # Phase 1 — PS-X EXE identity and measured loader contract
 
-Batch: `psx-support-2026-10`. Status: execution contract authorized by the user's “begin”; Phase 1 technical acceptance and bounded review passed. [PR #1](https://github.com/Troll-Phace/rea/pull/1) is open; approved merge remains pending; [measured results](phase-1-results.md) freeze the downstream research contract.
+Batch: `psx-support-2026-10`. Status: execution contract authorized by the user's “begin”; Phase 1 complete: technical acceptance, bounded review and user-approved [PR #1](https://github.com/Troll-Phace/rea/pull/1) merge passed; merge commit `7fdb2657cb9839e56272763a3d1a0e19fd5041d6`; [measured results](phase-1-results.md) freeze the downstream research contract.
 
 Shared plan: `docs/active/phase-1-plan.md`. Astra/low produced this contract; the orchestrator persisted it because the current planner runtime was read-only. The orchestrator owns review and subsequent state updates. Local issue: **PSX-001**. No batch rollover applies.
 
@@ -710,4 +710,4 @@ Each handoff returns:
 
 The parser, identity propagation and deep-provider rejection are implemented and verified. The exact seven-case research matrix and cleanup passed; [Phase 1 results](phase-1-results.md) records observed loader identity, options, mappings, entries/registers, provenance, selected assets and limitations. PSX-006 blocks deterministic production option/profile admission; PSX-007 blocks source-backed attestation. Defaults-only import and matching payload hashes do not resolve those blockers.
 
-One bounded close review found no new blocking or deferred findings. Final delivery follows P1-90: verify final content, commit/push the phase branch and prepare the concrete PR. Merge requires user approval. Later phases and Linux/local-game/package acceptance remain unperformed; Phase 2 needs a newly authorized plan using the measured facts.
+One bounded close review found no new blocking or deferred findings. P1-90 delivery completed: final content verified, branch committed/pushed, concrete [PR #1](https://github.com/Troll-Phace/rea/pull/1) approved by the user and merged at `7fdb2657cb9839e56272763a3d1a0e19fd5041d6`. PSX-001 is closed. Later phases and Linux/local-game/package acceptance remain unperformed; Phase 2 needs a newly authorized plan using the measured facts.

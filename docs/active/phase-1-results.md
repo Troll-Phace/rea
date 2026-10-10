@@ -89,6 +89,6 @@ Phase 1 can finish its measured research outcome while these downstream gates st
 - Harness configured validator and 14 Python helper tests: passed. These are structural/simulated evidence; fresh-client agent/skill discovery and native hook lifecycle remain unverified.
 - Actual seven-case macOS synthetic loader matrix: passed with the limitations and cleanup above.
 
-The close review and final-content verification are recorded in PROGRESS.md before delivery. PSX-001 remains in progress until its required PR/merge delivery scope is satisfied.
+The close review and final-content verification are recorded in PROGRESS.md before delivery. PSX-001 is closed after its technical criteria and required user-approved merge were verified.
 
-Delivery: implementation commit `0a8b033ac7bbd2f6e6a5f8f48b55504463f3f000` pushed; [PR #1](https://github.com/Troll-Phace/rea/pull/1) open. Approved merge remains pending.
+Delivery: implementation commit `0a8b033ac7bbd2f6e6a5f8f48b55504463f3f000` pushed; [PR #1](https://github.com/Troll-Phace/rea/pull/1) merged with user approval at `7fdb2657cb9839e56272763a3d1a0e19fd5041d6` on 2026-10-09 (2026-10-10T03:02:01Z). Pre-merge current-head `npm run check` passed; GitHub merged state and synchronized local/remote main were confirmed. Downstream PSX-006 and PSX-007 remain open.
