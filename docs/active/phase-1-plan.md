@@ -1,6 +1,6 @@
 # Phase 1 — PS-X EXE identity and measured loader contract
 
-Batch: `psx-support-2026-10`. Status: execution contract authorized by the user's “begin”; Phase 1 technical acceptance and bounded review passed. PR/merge delivery remains pending; [measured results](phase-1-results.md) freeze the downstream research contract.
+Batch: `psx-support-2026-10`. Status: execution contract authorized by the user's “begin”; Phase 1 technical acceptance and bounded review passed. [PR #1](https://github.com/Troll-Phace/rea/pull/1) is open; approved merge remains pending; [measured results](phase-1-results.md) freeze the downstream research contract.
 
 Shared plan: `docs/active/phase-1-plan.md`. Astra/low produced this contract; the orchestrator persisted it because the current planner runtime was read-only. The orchestrator owns review and subsequent state updates. Local issue: **PSX-001**. No batch rollover applies.
 

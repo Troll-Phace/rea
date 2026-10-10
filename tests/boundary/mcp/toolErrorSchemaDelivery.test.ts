@@ -99,15 +99,15 @@ it("refuses PSX deep analysis over stdio while preserving unbound target identit
       path,
       analysis_provider_binding: null,
       analysis_provider_candidates: ["ghidra", "hopper", "ida"].map((id) =>
-          expect.objectContaining({
-            provider: expect.objectContaining({ id }),
-            selected: false,
-            target_support: expect.objectContaining({
-              status: "unsupported",
-              code: "target_format_unsupported",
-            }),
+        expect.objectContaining({
+          provider: expect.objectContaining({ id }),
+          selected: false,
+          target_support: expect.objectContaining({
+            status: "unsupported",
+            code: "target_format_unsupported",
           }),
-        ),
+        }),
+      ),
     },
   });
   const native = await call("analyze_function", { procedure: "main" });

@@ -90,3 +90,5 @@ Phase 1 can finish its measured research outcome while these downstream gates st
 - Actual seven-case macOS synthetic loader matrix: passed with the limitations and cleanup above.
 
 The close review and final-content verification are recorded in PROGRESS.md before delivery. PSX-001 remains in progress until its required PR/merge delivery scope is satisfied.
+
+Delivery: implementation commit `0a8b033ac7bbd2f6e6a5f8f48b55504463f3f000` pushed; [PR #1](https://github.com/Troll-Phace/rea/pull/1) open. Approved merge remains pending.

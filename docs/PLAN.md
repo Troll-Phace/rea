@@ -36,7 +36,7 @@ Detailed shared execution contract: [Phase 1 plan](active/phase-1-plan.md).
 This contract refines the overview below and is the required input for all
 Phase 1 implementors/reviewers. Detailed task IDs are P1-00, P1-11, P1-12,
 P1-13, P1-21, P1-22 and P1-90; overview P1.1 maps to P1-11/P1-12/P1-13 and
-P1.2 maps to P1-21/P1-22. Phase 1 technical acceptance and bounded review passed; PR/merge delivery remains pending. [Measured results](active/phase-1-results.md) freeze loader facts and downstream blockers; [P1-21R](active/phase-1-loader-supplement.md) records the authorized research continuation.
+P1.2 maps to P1-21/P1-22. Phase 1 technical acceptance and bounded review passed; [PR #1](https://github.com/Troll-Phace/rea/pull/1) is open; approved merge remains pending. [Measured results](active/phase-1-results.md) freeze loader facts and downstream blockers; [P1-21R](active/phase-1-loader-supplement.md) records the authorized research continuation.
 
 Objective: recognize PSX coherently across domain/public identity without advertising provider support, and establish an exact real loader contract. Dependencies: implementation authority and pinned toolchain. Delivery endpoint: independently compiling/tested recognition with explicit provider rejection; no claim of usable PSX analysis.
 

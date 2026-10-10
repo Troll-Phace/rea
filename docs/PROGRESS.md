@@ -1,6 +1,6 @@
 # PSX support progress
 
-Batch: psx-support-2026-10. Active phase: Phase 1 (technical acceptance complete; PR/merge delivery pending). Scaffold status: complete and locally validated. Branch: `codex/psx-phase-1`, baseline `7aa4d768`. Technical acceptance and bounded close review passed; commit/push/PR preparation is next. Merge remains pending user approval of the concrete PR.
+Batch: psx-support-2026-10. Active phase: Phase 1 (technical acceptance complete; PR/merge delivery pending). Scaffold status: complete and locally validated. Branch: `codex/psx-phase-1`, baseline `7aa4d768`. Technical acceptance and bounded close review passed; implementation commit `0a8b033ac7bbd2f6e6a5f8f48b55504463f3f000` pushed and [PR #1](https://github.com/Troll-Phace/rea/pull/1) opened. Merge remains pending user approval of this concrete PR.
 
 ## Planning and implementation history
 
@@ -28,12 +28,18 @@ Batch: psx-support-2026-10. Active phase: Phase 1 (technical acceptance complete
 - P1-21/P1-22: exact seven-case real synthetic macOS matrix passed on Ghidra 12.1.4/Temurin 25.0.4.1. See [versioned Phase 1 results](active/phase-1-results.md), [original contract](active/phase-1-plan.md) and [Astra research supplement](active/phase-1-loader-supplement.md). Report `docs/psx-local/loader-contract-runs/run-8keqyf/report.json`, SHA256 `692d534401d9fd7685025973614f2399c339a2bf7e36d77371ea6b2bef1628ff`; fixture/probe/463 extension-asset/core-MIPS hashes unchanged, native inspector closed, exact owned root removed, verified lineage empty.
 - Measured outcome: mapping contents match the declared payload; FileBytes provenance is absent, SP context is unknown, declared fill is uninitialized and surrounding coverage differs by variant. Explicit RAM overrides fail despite a zero process exit. PSX-006 and PSX-007 block later production import/attestation; matching defaults and hashes do not close those gates.
 - P1-90: one Sol6.1/high bounded code-reviewer completed with no new blocking or deferred findings. It independently checked the final report, current probe fingerprints, fixture oracle, four negative producer cases, ownership/cleanup and saved-plan harness. No recursive audit or later-phase work performed.
-- Final source checks: `npm run build:cached`, `npm run check` (six tasks plus architecture guards; 487 existing warnings, zero errors), catalog generation/check and docs check passed. Configured harness validator and all 14 framework tests passed. Final documentation checks run before delivery; commit/PR identifiers are recorded after they exist.
+- Final source checks: `npm run build:cached`, `npm run check` (six tasks plus architecture guards; 487 existing warnings, zero errors), catalog generation/check and docs check passed. Configured harness validator and all 14 framework tests passed. Final documentation/link/whitespace checks passed; pre-commit and pre-push hooks passed without changing measured probe sources.
+
+## Delivery checkpoint
+
+- Implementation commit: `0a8b033ac7bbd2f6e6a5f8f48b55504463f3f000`, Conventional subject `feat(psx): recognize executable identity and measure loader contract`.
+- Branch pushed to `origin/codex/psx-phase-1`; [PR #1](https://github.com/Troll-Phace/rea/pull/1) is open and attached to the chat. Auto-merge is disabled. No remote checks were advertised at initial PR inspection; required local checks and repository hooks passed.
+- This follow-up records the actual PR/commit outcome and formats one test expression rewritten by the pre-commit linter; its focused MCP suite and full static checks passed before branch push. Recheck current PR head/checks after user approval; no merge is claimed.
 
 ## Pending
 
 - User authorized Phase 1 with “begin” and then explicitly approved a repository-local Node 24.18.0/npm 11.16.0 installation exception under `.agent-runtime/toolchain`, after automatic approval review rejected the initial installation. Global software and provider installations remain unchanged; P1-00 prerequisites are complete.
-- Phase 1 technical acceptance and review passed; PR/merge delivery remains pending. Later application phases, actual PSX public-provider support, Linux loader lane, local AC3 pilot and package/client integration remain unperformed and unauthorized.
+- Phase 1 technical acceptance and review passed; Approved merge remains pending. Later application phases, actual PSX public-provider support, Linux loader lane, local AC3 pilot and package/client integration remain unperformed and unauthorized.
 - Final delivery checks use the verified local pinned toolchain; the ambient older toolchain is unchanged. PSX-001 remains in progress until all delivery criteria, including approved merge, are satisfied.
 - New project-rooted client pilot for agent/skill discovery; hook definitions configured; automatic execution pending lifecycle/trust pilot.
 - Skill-creator quick validation could not run because the current Python lacks PyYAML; configured repository harness validation covers its existing structural checks only. Planner write permissions and saved-file handoff discovery still require a fresh client pilot.
@@ -44,4 +50,4 @@ User selected local issue management on 2026-10-09. docs/ISSUE_LEDGER.md is cano
 
 ## Next action
 
-Finalize documentation and intended staged content, commit/push `codex/psx-phase-1` and prepare its reviewable PR. Concrete PR approval is required before merge; Phase 2 is not authorized and requires a new plan accounting for PSX-006/PSX-007 and the measured register/fill/mapping limitations.
+Await user approval of [PR #1](https://github.com/Troll-Phace/rea/pull/1), then verify current-head checks and merge through the established workflow; Phase 2 is not authorized and requires a new plan accounting for PSX-006/PSX-007 and the measured register/fill/mapping limitations.

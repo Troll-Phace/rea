@@ -1,7 +1,7 @@
 # PSX issue ledger
 
 Canonical offline ledger. Batch psx-support-2026-10. Next ID: PSX-008.
-No GitHub issue numbers are assigned. Phase 1 technical acceptance and review passed; PR/merge delivery remains pending. Later phases remain planned and unauthorized.
+No GitHub issue numbers are assigned. Phase 1 technical acceptance and review passed; PR #1 is open; approved merge remains pending. Later phases remain planned and unauthorized.
 
 | ID      | Type    | Severity | Status      | Phase | Title                                               |
 | ------- | ------- | -------- | ----------- | ----- | --------------------------------------------------- |
@@ -18,10 +18,10 @@ No GitHub issue numbers are assigned. Phase 1 technical acceptance and review pa
 - Status: in-progress; type: feature; severity: high; phase: 1.
 - Owner: orchestrator, with task delegation per PLAN.md.
 - Evidence: parser/identity and deep-provider rejection implemented and verified. [Phase 1 results](active/phase-1-results.md) records exact checks, final seven-case macOS synthetic Ghidra matrix, actual loader/asset/report digests and verified cleanup. [Shared plan](active/phase-1-plan.md) and [research supplement](active/phase-1-loader-supplement.md) remain the execution contract. One bounded close review found no new blockers.
-- Dependencies: pinned toolchain established with explicit repository-local user authorization; technical gates passed. PR/merge delivery remains pending.
+- Dependencies: pinned toolchain established with explicit repository-local user authorization; technical gates passed. PR #1 is open; approved merge remains pending.
 - Done-criteria: Validated parser and identity contracts; negative format cases; measured loader contract from synthetic real Ghidra import; Phase 1 exact checks and delivery satisfied.
 - Tasks and exact verification contract: [shared Phase 1 plan](active/phase-1-plan.md), P1-00/P1-11/P1-12/P1-13/P1-21/P1-22/P1-90; overview in PLAN.md. Measured loader facts and downstream blockers are frozen in the versioned results; production defaults/profile and source-backed attestation remain future gates.
-- Closure evidence/date/commit/PR: technical acceptance recorded 2026-10-09; final report SHA256 `692d534401d9fd7685025973614f2399c339a2bf7e36d77371ea6b2bef1628ff`. Still in progress pending PR/merge delivery; no closure claimed.
+- Closure evidence/date/commit/PR: technical acceptance recorded 2026-10-09; final report SHA256 `692d534401d9fd7685025973614f2399c339a2bf7e36d77371ea6b2bef1628ff`. Implementation commit `0a8b033ac7bbd2f6e6a5f8f48b55504463f3f000`; [PR #1](https://github.com/Troll-Phace/rea/pull/1) open. Still in progress pending approved merge; no closure claimed.
 
 ## PSX-002 — Deterministic Ghidra PSX import
 
