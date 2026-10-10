@@ -1,18 +1,34 @@
 import type { BinaryArchitecture } from "./binaryTargetTypes.js";
 import { err, ok, type Result } from "./result.js";
+import {
+  hasPsxExeSignature,
+  parsePsxExeHeader,
+  inspectPsxExePolicy,
+} from "./psxExe.js";
 import { mzWindowsHeaderOffset, parseDosMzHeader } from "./dosMz.js";
 
 /** Format and architecture facts recovered from an executable header. */
 export type ExecutableMetadata =
   | {
       readonly format: "mach-o" | "elf" | "dos-mz" | "dos-com";
-      readonly architecture: BinaryArchitecture;
-      readonly availableArchitectures: readonly BinaryArchitecture[];
+      readonly architecture: Exclude<BinaryArchitecture, "mips">;
+      readonly availableArchitectures: readonly Exclude<
+        BinaryArchitecture,
+        "mips"
+      >[];
+    }
+  | {
+      readonly format: "ps-x-exe";
+      readonly architecture: "mips";
+      readonly availableArchitectures: readonly "mips"[];
     }
   | {
       readonly format: "pe";
-      readonly architecture: BinaryArchitecture;
-      readonly availableArchitectures: readonly BinaryArchitecture[];
+      readonly architecture: Exclude<BinaryArchitecture, "mips">;
+      readonly availableArchitectures: readonly Exclude<
+        BinaryArchitecture,
+        "mips"
+      >[];
       readonly executableRole:
         | "application"
         | "shared-library"
@@ -29,6 +45,20 @@ export const parseExecutableHeader = (
   hostArchitecture: NodeJS.Architecture,
   fileSize = bytes.length,
 ): Result<ExecutableMetadata, string> => {
+  if (hasPsxExeSignature(bytes)) {
+    const parsed = parsePsxExeHeader(bytes, fileSize);
+    if (!parsed.ok) return err(`malformed PS-X EXE: ${parsed.error.reason}`);
+    const policy = inspectPsxExePolicy(parsed.value);
+    if (policy.status === "unsupported")
+      return err(
+        `recognized PS-X EXE is unsupported by the initial import policy: ${policy.reasons.map((reason) => reason.reason).join("; ")}`,
+      );
+    return ok({
+      format: "ps-x-exe",
+      architecture: "mips",
+      availableArchitectures: ["mips"],
+    });
+  }
   if (
     bytes.length >= 4 &&
     bytes.subarray(0, 4).equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46]))
@@ -88,8 +118,8 @@ const parseFatMachO = (
   const entrySize = is64 ? 32 : 20;
   if (count === 0 || count > 128 || bytes.length < 8 + count * entrySize)
     return err("truncated or invalid FAT architecture table");
-  const architectures: BinaryArchitecture[] = [];
-  const sliceEnds = new Map<BinaryArchitecture, bigint>();
+  const architectures: Exclude<BinaryArchitecture, "mips">[] = [];
+  const sliceEnds = new Map<Exclude<BinaryArchitecture, "mips">, bigint>();
   for (let index = 0; index < count; index += 1) {
     const entry = 8 + index * entrySize;
     const architecture = machArchitecture(read(entry));
@@ -239,7 +269,9 @@ const peManagedStatus = (
   );
 };
 
-const machArchitecture = (cpu: number): BinaryArchitecture | undefined => {
+const machArchitecture = (
+  cpu: number,
+): Exclude<BinaryArchitecture, "mips"> | undefined => {
   switch (cpu) {
     case 7:
       return "x86";
@@ -253,7 +285,9 @@ const machArchitecture = (cpu: number): BinaryArchitecture | undefined => {
   return undefined;
 };
 
-const elfArchitecture = (machine: number): BinaryArchitecture | undefined => {
+const elfArchitecture = (
+  machine: number,
+): Exclude<BinaryArchitecture, "mips"> | undefined => {
   switch (machine) {
     case 3:
       return "x86";
@@ -267,7 +301,9 @@ const elfArchitecture = (machine: number): BinaryArchitecture | undefined => {
   return undefined;
 };
 
-const peArchitecture = (machine: number): BinaryArchitecture | undefined => {
+const peArchitecture = (
+  machine: number,
+): Exclude<BinaryArchitecture, "mips"> | undefined => {
   switch (machine) {
     case 0x14c:
       return "x86";

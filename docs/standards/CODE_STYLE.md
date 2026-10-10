@@ -1,0 +1,3 @@
+# Code standards
+
+Preserve root AGENTS.md and CONTRIBUTING.md. Use TypeScript ESM and the existing tagged Result/error algebra. Keep provider protocols out of domain/application logic. Validate boundary input once at its owning layer; retain partial facts and unknowns. Prefer focused changes to existing abstractions. Ghidra Java follows existing bridge conventions. Conventional Commits remain authoritative. Change schema sources then regenerate owned outputs; never hand-edit ignored catalogs or packaged skills. No global toolchain, client config or unrelated runtime changes as part of PSX feature work.

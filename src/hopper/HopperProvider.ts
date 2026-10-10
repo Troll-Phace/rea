@@ -106,6 +106,14 @@ export class HopperProvider implements AnalysisProviderCandidate {
         reason: `Hopper cannot directly analyze ${target.kind} targets.`,
         diagnostics,
       };
+    if (target.format === "ps-x-exe")
+      return {
+        status: "unsupported",
+        code: "target_format_unsupported",
+        reason:
+          "PS-X EXE is recognized, but PSX analysis is not supported by this REA provider.",
+        diagnostics,
+      };
     if (target.kind === "database")
       return {
         status: "supported",

@@ -68,14 +68,20 @@ const snapshotWithHistoricalEvidence = () => {
 };
 
 describe("analysis snapshot contract", () => {
-  it("preserves DOS MZ target and subject formats with the x86 family", () => {
+  it.each([
+    { format: "dos-mz", architecture: "x86", availableArchitectures: ["x86"] },
+    {
+      format: "ps-x-exe",
+      architecture: "mips",
+      availableArchitectures: ["mips"],
+    },
+  ] as const)("preserves $format target and subject identities", (identity) => {
+    const { format, architecture } = identity;
     const target = {
       path: ANALYSIS_SNAPSHOT_TARGET.path,
       sha256: ANALYSIS_SNAPSHOT_TARGET.sha256,
       kind: "executable" as const,
-      format: "dos-mz" as const,
-      architecture: "x86" as const,
-      availableArchitectures: ["x86" as const],
+      ...identity,
     };
     const evidence = createEvidence(target, ANALYSIS_SNAPSHOT_PROVIDER, {
       operation: "analyze_function",
@@ -106,11 +112,11 @@ describe("analysis snapshot contract", () => {
       evidence_bundle: createEvidenceBundle([evidence]),
     });
     expect(parsed.target).toMatchObject({
-      format: "dos-mz",
-      architecture: "x86",
+      format,
+      architecture,
     });
-    expect(parsed.entries[0]?.execution.subject?.format).toBe("dos-mz");
-    expect(parsed.evidence_bundle.records[0]?.subject?.format).toBe("dos-mz");
+    expect(parsed.entries[0]?.execution.subject?.format).toBe(format);
+    expect(parsed.evidence_bundle.records[0]?.subject?.format).toBe(format);
   });
 
   it("accepts snapshots with more than ten thousand analysis entries", () => {

@@ -18,6 +18,7 @@ import { toolRegistrationOptions } from "../../../src/server/toolRegistrationOpt
 
 import { verifyManagedNativeBoundaries } from "../../../src/domain/managed/managedNativeVerification.js";
 import { processCaptureSchema } from "../../../src/domain/process/processCapture.js";
+import { connectLocalToolsMcp } from "../../fixtures/localToolsMcp.js";
 const record = (value: unknown): Record<string, unknown> => {
   if (typeof value !== "object" || value === null || Array.isArray(value))
     throw new Error("Expected a schema object");
@@ -185,4 +186,56 @@ it("advertises semantic output invariants and keeps producers aligned with Zod",
   } finally {
     await Promise.allSettled([client.close(), server.close()]);
   }
+});
+
+it("admits PSX/MIPS lifecycle contract examples without claiming a usable session", async () => {
+  const { client, call } = await connectLocalToolsMcp();
+  const tools = new Map(
+    (await client.listTools()).tools.map((tool) => [tool.name, tool]),
+  );
+  const closedReply = await call("binary_session", {});
+  const closed = record(record(closedReply.structuredContent).result);
+  expect(closed.open).toBe(false);
+  const target = {
+    path: "/contract-examples/original-psx-fixture",
+    format: "ps-x-exe",
+    kind: "executable",
+    sha256: "a".repeat(64),
+    architecture: "mips",
+  };
+  // Examples exercise identity vocabulary only. No deep provider admits these bytes in Phase 1.
+  const examples = [
+    { name: "open_binary", example: { result: target } },
+    {
+      name: "binary_session",
+      example: { result: { ...closed, ...target, open: true } },
+    },
+  ] as const;
+  for (const { name, example } of examples) {
+    const advertised = tools.get(name)?.outputSchema;
+    if (advertised === undefined)
+      throw new Error(`${name} output schema missing`);
+    const schema = z.record(z.string(), z.unknown()).parse(advertised);
+    expect(schema.$schema).toBe("https://json-schema.org/draft/2020-12/schema");
+    const ajv = new Ajv2020({ strict: false, validateFormats: false });
+    expect(ajv.validateSchema(schema)).toBe(true);
+    const validate = ajv.compile(schema);
+    expect(validate(example), JSON.stringify(validate.errors)).toBe(true);
+    expect(toolContract(name).outputSchema.safeParse(example).success).toBe(
+      true,
+    );
+    for (const change of [
+      { format: "playstation-rom" },
+      { architecture: "mips64" },
+      { sha256: "unverified" },
+    ]) {
+      const invalid = { result: { ...example.result, ...change } };
+      expect(validate(invalid)).toBe(false);
+      expect(toolContract(name).outputSchema.safeParse(invalid).success).toBe(
+        false,
+      );
+    }
+  }
+  const following = await call("binary_session", {});
+  expect(record(record(following.structuredContent).result).open).toBe(false);
 });

@@ -1,3 +1,4 @@
+import { hasPsxExeSignature, parsePsxExeHeader } from "../../domain/psxExe.js";
 import { compareUnicodeCodePoints } from "../../domain/unicodeCodePointOrder.js";
 import { digestCanonicalValue } from "../../domain/canonicalDigest.js";
 import {
@@ -352,6 +353,8 @@ export const classifyArtifactBytes = (
   prefix: Buffer,
   fileSize = prefix.length,
 ): ArtifactNode["format"] => {
+  if (hasPsxExeSignature(prefix))
+    return parsePsxExeHeader(prefix, fileSize).ok ? "ps-x-exe" : "unknown";
   if (hasZipSignature(prefix)) return "zip";
   if (prefix.subarray(0, 8).equals(Buffer.from("bplist00"))) return "plist";
   if (prefix.length >= 4) {

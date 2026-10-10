@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   chmod,
   mkdir,
@@ -706,5 +707,130 @@ describe("DOS binary target I/O", () => {
       ok: false,
       error: { message: "Cannot open artifact: truncated DOS MZ load module" },
     });
+  });
+});
+
+describe("PS-X EXE binary target I/O", () => {
+  const fixture = (payloadBytes = 0x800): Buffer => {
+    const bytes = Buffer.alloc(0x800 + payloadBytes);
+    Buffer.from([0x50, 0x53, 0x2d, 0x58, 0x20, 0x45, 0x58, 0x45]).copy(bytes);
+    bytes.writeUInt32LE(0x80010000, 0x10);
+    bytes.writeUInt32LE(0x80010000, 0x18);
+    bytes.writeUInt32LE(payloadBytes, 0x1c);
+    bytes.fill(0x5a, 0x800);
+    return bytes;
+  };
+
+  it.each([
+    "program",
+    "program.hop",
+    "program.js",
+    "program.map",
+    "program.plist",
+    "program.asar",
+  ])(
+    "resolves exact PSX bytes before the implicit classification of %s",
+    async (name) => {
+      const root = await createTestTempDirectory("rea-psx-target-");
+      const path = join(root, name);
+      const bytes = fixture();
+      await writeFile(path, bytes);
+      const result = await parseBinaryTarget(name, { cwd: root });
+      if (!result.ok) throw result.error;
+      expect(result.value).toEqual({
+        path,
+        sourcePath: path,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+        kind: "executable",
+        format: "ps-x-exe",
+        architecture: "mips",
+        availableArchitectures: ["mips"],
+      });
+      expect(await readFile(path)).toEqual(bytes);
+    },
+  );
+
+  it("retains explicit DOS COM and database caller choices for PSX bytes", async () => {
+    const root = await createTestTempDirectory("rea-psx-explicit-");
+    const path = join(root, "program.hop");
+    await writeFile(path, fixture());
+    const dos = await parseBinaryTarget(path, { formatHint: "dos-com" });
+    if (!dos.ok) throw dos.error;
+    expect(dos.value).toMatchObject({
+      kind: "executable",
+      format: "dos-com",
+      architecture: "x86",
+    });
+    const database = await parseBinaryTarget(path, { targetKind: "database" });
+    if (!database.ok) throw database.error;
+    expect(database.value).toMatchObject({
+      kind: "database",
+      format: "analysis-database",
+    });
+    expect(database.value.sha256).toBe(dos.value.sha256);
+  });
+
+  it.each(["program.hop", "program.js", "program.map", "program.asar"])(
+    "does not disguise exact-signature malformed PSX as %s",
+    async (name) => {
+      const root = await createTestTempDirectory("rea-psx-malformed-");
+      const path = join(root, name);
+      await writeFile(path, fixture().subarray(0, 0x800));
+      expect(await parseBinaryTarget(path)).toMatchObject({
+        ok: false,
+        error: {
+          _tag: "BinaryTargetError",
+          path,
+          reason: expect.stringContaining("malformed PS-X EXE"),
+        },
+      });
+    },
+  );
+
+  it("checks the actual file length beyond the probe and hashes trailing bytes", async () => {
+    const root = await createTestTempDirectory("rea-psx-large-");
+    const path = join(root, "program");
+    const payload = fixture(128 * 1024 + 4);
+    const bytes = Buffer.concat([
+      payload,
+      Buffer.from("original trailing bytes"),
+    ]);
+    await writeFile(path, bytes);
+    const result = await parseBinaryTarget(path);
+    if (!result.ok) throw result.error;
+    expect(result.value).toMatchObject({
+      format: "ps-x-exe",
+      architecture: "mips",
+      path,
+      sourcePath: path,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+    });
+    await writeFile(path, payload.subarray(0, payload.length - 1));
+    expect(await parseBinaryTarget(path)).toMatchObject({
+      ok: false,
+      error: { reason: expect.stringContaining("malformed PS-X EXE") },
+    });
+  });
+
+  it("preserves cancellation and allows a following PSX read", async () => {
+    const root = await createTestTempDirectory("rea-psx-cancel-");
+    const path = join(root, "program");
+    const bytes = fixture();
+    await writeFile(path, bytes);
+    const controller = new AbortController();
+    controller.abort();
+    expect(
+      await parseBinaryTarget(path, { signal: controller.signal }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        _tag: "AnalysisCancelledError",
+        operation: "resolve_binary_target",
+      },
+    });
+    const following = await parseBinaryTarget(path);
+    if (!following.ok) throw following.error;
+    expect(following.value.format).toBe("ps-x-exe");
+    expect(await readFile(path)).toEqual(bytes);
   });
 });

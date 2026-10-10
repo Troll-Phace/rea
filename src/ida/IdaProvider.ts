@@ -101,15 +101,23 @@ export class IdaProvider implements AnalysisProviderCandidate {
       target_kind: target.kind,
       target_format: target.format,
     };
-    return target.kind === "executable"
-      ? { status: "supported", code: null, reason: null, diagnostics }
-      : {
-          status: "unsupported",
-          code: "target_kind_unsupported",
-          reason:
-            "IDA MCP integration admits executable inputs, not analysis databases. Select the original input binary.",
-          diagnostics,
-        };
+    if (target.kind !== "executable")
+      return {
+        status: "unsupported",
+        code: "target_kind_unsupported",
+        reason:
+          "IDA MCP integration admits executable inputs, not analysis databases. Select the original input binary.",
+        diagnostics,
+      };
+    if (target.format === "ps-x-exe")
+      return {
+        status: "unsupported",
+        code: "target_format_unsupported",
+        reason:
+          "PS-X EXE is recognized, but PSX analysis is not supported by this REA provider.",
+        diagnostics,
+      };
+    return { status: "supported", code: null, reason: null, diagnostics };
   }
   async resolveAnalysisProfile(
     _target: BinaryTarget,

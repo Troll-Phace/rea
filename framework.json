@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "framework_version": "0.2.0-draft",
+  "project_name": "REA PSX executable support",
+  "default_branch": "main",
+  "issue_repository": null,
+  "commands": {
+    "verify": "npm run check",
+    "tests": "npm run test:local",
+    "lint": "npm run lint",
+    "format_check": "npm run format:check",
+    "dev": null
+  },
+  "context_max_chars": 6000,
+  "backlog_max_items": 10,
+  "backlog_max_age_hours": 24,
+  "delivery_repository": "Troll-Phace/rea",
+  "issue_tracking": {
+    "mode": "offline",
+    "ledger_path": "docs/ISSUE_LEDGER.md"
+  }
+}

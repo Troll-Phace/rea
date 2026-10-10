@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
@@ -15,6 +15,12 @@ import {
   type CapabilityDescriptor,
   type ProviderIdentity,
 } from "../../../src/application/AnalysisProvider.js";
+import { parseConfig } from "../../../src/config/parseConfig.js";
+import { GhidraProvider } from "../../../src/ghidra/GhidraProvider.js";
+import { HopperProvider } from "../../../src/hopper/HopperProvider.js";
+import { IdaProvider } from "../../../src/ida/IdaProvider.js";
+import { silentLogger } from "../../../src/logger.js";
+import type { BinaryTarget } from "../../../src/domain/binaryTargetTypes.js";
 import { AnalysisProviderRegistry } from "../../../src/application/binary/AnalysisProviderRegistry.js";
 import type { BinarySession } from "../../../src/application/binary/BinarySession.js";
 import { composeBinarySession } from "../../../src/application/binary/BinarySessionComposition.js";
@@ -25,6 +31,100 @@ import { ProviderAdapterError } from "../../../src/domain/providerAdapterError.j
 import { err, ok } from "../../../src/domain/result.js";
 
 type DeclaredOperation = Exclude<AnalysisOperation, "health">;
+
+describe("PSX provider selection admission", () => {
+  it("rejects PSX explicit selection and leaves automatic selection unbound without profiles or clients", async () => {
+    const config = parseConfig({});
+    if (!config.ok) throw config.error;
+    const target: BinaryTarget = {
+      path: "/tmp/original.psx",
+      sha256: "a".repeat(64),
+      kind: "executable",
+      format: "ps-x-exe",
+      architecture: "mips",
+      availableArchitectures: ["mips"],
+    };
+    const providers = [
+      new IdaProvider(config.value, {}),
+      new HopperProvider(config.value, silentLogger, {}),
+      new GhidraProvider(config.value, silentLogger, {}),
+    ];
+    const recordings = providers.map((provider) => ({
+      profile: vi
+        .spyOn(provider, "resolveAnalysisProfile")
+        .mockImplementation(() => {
+          throw new Error("unsupported target resolved a profile");
+        }),
+      client: vi.spyOn(provider, "createClient").mockImplementation(() => {
+        throw new Error("unsupported target created a client");
+      }),
+      availability: vi.spyOn(provider, "inspectAvailability").mockReturnValue({
+        status: "available",
+        code: null,
+        reason: null,
+        diagnostics: {},
+      }),
+    }));
+    try {
+      for (const candidates of [providers, [...providers].reverse()]) {
+        const registry = new AnalysisProviderRegistry(candidates);
+        for (const provider of providers) {
+          const rejected = await registry.select(
+            target,
+            provider.identity().id,
+          );
+          expect(rejected).toMatchObject({
+            ok: false,
+            error: {
+              reason: "target_unsupported",
+              rejections: expect.arrayContaining([
+                expect.objectContaining({ code: "target_format_unsupported" }),
+              ]),
+            },
+          });
+        }
+        const automatic = await registry.select(target);
+        if (!automatic.ok) throw automatic.error;
+        expect(automatic.value.binding).toBeNull();
+        expect(
+          automatic.value.candidates.map(({ provider }) => provider.id),
+        ).toEqual(["ghidra", "hopper", "ida"]);
+        for (const candidate of automatic.value.candidates)
+          expect(candidate.targetSupport).toMatchObject({
+            status: "unsupported",
+            code: "target_format_unsupported",
+          });
+      }
+      for (const recording of recordings) {
+        expect(recording.profile).not.toHaveBeenCalled();
+        expect(recording.client).not.toHaveBeenCalled();
+      }
+      // Availability is independent of PSX installation; refusal also survives unavailable candidates.
+      for (const recording of recordings)
+        recording.availability.mockReturnValue({
+          status: "unavailable",
+          code: "runtime_missing",
+          reason: "synthetic unavailable provider",
+          diagnostics: {},
+        });
+      const unavailable = await new AnalysisProviderRegistry(providers).select(
+        target,
+      );
+      if (!unavailable.ok) throw unavailable.error;
+      expect(unavailable.value.binding).toBeNull();
+      for (const recording of recordings) {
+        expect(recording.profile).not.toHaveBeenCalled();
+        expect(recording.client).not.toHaveBeenCalled();
+      }
+    } finally {
+      for (const recording of recordings) {
+        recording.profile.mockRestore();
+        recording.client.mockRestore();
+        recording.availability.mockRestore();
+      }
+    }
+  });
+});
 
 describe("target-bound provider routing", () => {
   it("rejects provider identity and operation-family collisions at composition", () => {

@@ -31,13 +31,14 @@ import {
 import { digestSchema } from "./../domain/digests.js";
 import { prefixedDigestSchema } from "./../domain/digests.js";
 
-const architectureSchema = z.enum(["x86", "x86_64", "arm", "arm64"]);
+const architectureSchema = z.enum(["x86", "x86_64", "arm", "arm64", "mips"]);
 const formatSchema = z.enum([
   "analysis-database",
   "mach-o",
   "elf",
   "pe",
   "dos-mz",
+  "ps-x-exe",
   "dos-com",
   "zip",
   "ipa",

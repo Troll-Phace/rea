@@ -1,0 +1,19 @@
+# Project-local agent routing. Orchestrator and managed permission choices inherit the session.
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 3
+
+[agents.phase-plan]
+config_file = "agents/phase-plan.toml"
+
+[agents.backend-dev]
+config_file = "agents/backend-dev.toml"
+
+[agents.test-engineer]
+config_file = "agents/test-engineer.toml"
+
+[agents.code-reviewer]
+config_file = "agents/code-reviewer.toml"
+
+[agents.issue-triage]
+config_file = "agents/issue-triage.toml"

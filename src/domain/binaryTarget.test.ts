@@ -139,3 +139,49 @@ describe("executable header completeness", () => {
     expect(parseExecutableHeader(bytes, "x64", 4100).ok).toBe(true);
   });
 });
+
+describe("PS-X EXE executable admission", () => {
+  const psx = () => {
+    const bytes = Buffer.alloc(0x810);
+    bytes.write("PS-X EXE", 0, "ascii");
+    bytes.writeUInt32LE(0x80120000, 0x10);
+    bytes.writeUInt32LE(0x80120000, 0x18);
+    bytes.writeUInt32LE(16, 0x1c);
+    return bytes;
+  };
+  it("identifies PSX independently of host architecture", () => {
+    for (const host of ["x64", "arm64"] as const)
+      expect(parseExecutableHeader(psx(), host)).toEqual({
+        ok: true,
+        value: {
+          format: "ps-x-exe",
+          architecture: "mips",
+          availableArchitectures: ["mips"],
+        },
+      });
+  });
+  it("preserves distinct malformed and unsupported failure messages", () => {
+    expect(parseExecutableHeader(psx().subarray(0, 55), "x64")).toEqual({
+      ok: false,
+      error: "malformed PS-X EXE: the fixed PS-X EXE header needs 2048 bytes",
+    });
+    const unsupported = psx();
+    unsupported.writeUInt32LE(0, 0x1c);
+    unsupported.writeUInt32LE(1, 0x10);
+    expect(parseExecutableHeader(unsupported, "x64")).toEqual({
+      ok: false,
+      error:
+        "recognized PS-X EXE is unsupported by the initial import policy: the declared payload is empty; the declared entry PC is not four-byte aligned",
+    });
+  });
+  it("leaves generic MIPS ELF and PE unsupported", () => {
+    expect(parseExecutableHeader(elf(1, 1, 8), "x64")).toEqual({
+      ok: false,
+      error: "unsupported ELF architecture",
+    });
+    expect(parseExecutableHeader(pe(0x166), "x64")).toEqual({
+      ok: false,
+      error: "unsupported PE architecture",
+    });
+  });
+});

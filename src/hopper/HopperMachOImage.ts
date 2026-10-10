@@ -44,6 +44,11 @@ export const resolveHopperMachOImage = async (
       ),
     );
   if (signal?.aborted) return err(new AnalysisCancelledError("open_binary"));
+  const architecture = target.architecture;
+  if (architecture === "mips")
+    return invalid(
+      "Hopper FAT64 selection requires an x86 or ARM architecture",
+    );
   let file: FileHandle;
   try {
     file = await open(target.path, "r");
@@ -120,7 +125,7 @@ export const resolveHopperMachOImage = async (
       const identityError = validateFatSlice(slice, size, tableEnd, identity);
       if (identityError !== null) return invalid(identityError);
       ranges.push(slice);
-      if (slice.cpuType === cpuTypes[target.architecture]) matches.push(slice);
+      if (slice.cpuType === cpuTypes[architecture]) matches.push(slice);
     }
     ranges.sort((a, b) => a.offset - b.offset);
     for (let index = 1; index < ranges.length; index++) {
