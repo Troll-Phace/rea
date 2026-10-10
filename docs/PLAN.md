@@ -1,6 +1,6 @@
 # PS-X EXE support — phased implementation plan
 
-Status: Phase 1 complete, accepted and merged through [PR #1](https://github.com/Troll-Phace/rea/pull/1); Phase 2 technically accepted with [PR #2](https://github.com/Troll-Phace/rea/pull/2) open and user merge approval pending; Phases 3–5 remain planned and unauthorized. Follow the phase delivery workflow through a reviewable PR; merging requires approval of that concrete PR. This document grants no new authority. Repository: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea`; fork `Troll-Phace/rea`, baseline handoff `7aa4d768`, package `6.3.0`.
+Status: Phase 1 complete, accepted and merged through [PR #1](https://github.com/Troll-Phace/rea/pull/1); Phase 2 complete, accepted and merged through approved [PR #2](https://github.com/Troll-Phace/rea/pull/2); Phases 3–5 remain planned and unauthorized. Follow the phase delivery workflow through a reviewable PR; merging requires approval of that concrete PR. This document grants no new authority. Repository: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea`; fork `Troll-Phace/rea`, baseline handoff `7aa4d768`, package `6.3.0`.
 
 ## Outcome and boundaries
 
@@ -74,8 +74,8 @@ Phase gate: P1.1 passes all source gates; P1.2 settles the concrete loader contr
 ## Phase 2 — target-specific availability and deterministic import
 
 Detailed shared execution contract: [Phase 2 plan](active/phase-2-plan.md).
-The user authorized Phase 2 execution after planning; concrete PR merge approval
-remains required. The saved contract refines P2.1/P2.2 into P2-00, P2-11,
+Phase 2 is complete: the user authorized execution and approved PR #2, merged
+at `51a9f7311d631bbc06dd020f0f6a7cd30b9a8aa0` on 2026-10-10. The saved contract refines P2.1/P2.2 into P2-00, P2-11,
 P2-12, P2-21, P2-22 and P2-90 and governs all Phase 2 handoffs. It settles
 default-only RAM transport with a narrow admission policy, observed startup
 agreement, conservative asset fingerprints and an inventory-only PSX query
@@ -190,10 +190,10 @@ Local issue mapping in `docs/ISSUE_LEDGER.md`: PSX-001 — Phase 1 recognition a
 
 For each future authorized implementation phase: update progress and local issue-ledger wording first; run final-content verification; create Conventional Commit, push and PR; obtain required user PR approval; merge only after that approval; verify final merged SHA and reconcile status. Approval to scaffold/plan is not approval for implementation or delivery now. Keep synthetic, boundary, macOS real-provider, Linux real-provider, local AC3 and packaged-artifact evidence distinct.
 
-Pinned Node 24.18.0/npm 11.16.0 and locked dependencies were established for Phase 1 under the explicitly authorized repository-local `.agent-runtime/toolchain`. Phase 1 checks and delivery evidence are recorded in PROGRESS.md; Phase 2 checks and preserved failed-run evidence are recorded in PROGRESS.md; the corrected macOS production matrix, final checks and bounded review pass; PR/approved-merge delivery remains pending. Use the existing pinned toolchain without installing unrelated software. Read installed Turborepo documentation before altering its configuration; this plan requires no such change.
+Pinned Node 24.18.0/npm 11.16.0 and locked dependencies were established for Phase 1 under the explicitly authorized repository-local `.agent-runtime/toolchain`. Phase 1 checks and delivery evidence are recorded in PROGRESS.md; Phase 2 checks and preserved failed-run evidence are recorded in PROGRESS.md; the corrected macOS production matrix, final checks, bounded review and approved PR/merge delivery passed. Use the existing pinned toolchain without installing unrelated software. Read installed Turborepo documentation before altering its configuration; this plan requires no such change.
 
 ## Risks and next action
 
-Phase 1 measured loader/class identity and demonstrated the RAM-option failure; Phase 2 must verify the saved default-only production policy and observed startup agreement. Loss of FileBytes provenance remains PSX-007 and requires a Phase 3 producer-boundary plan. Relevant SDK assets may alter analysis and must participate in profile identity. Delay-slot/p-code behavior requires Phase 4 synthetic decoding. Linux evidence is unavailable until run. The AC3 smoke remains a Phase 5 gate and may expose decompiler limitations without implying payload import failure.
+Phase 1 measured loader/class identity and demonstrated the RAM-option failure; Phase 2 verified the saved default-only production policy and observed startup agreement. Loss of FileBytes provenance remains PSX-007 and requires a Phase 3 producer-boundary plan. Relevant SDK assets may alter analysis and must participate in profile identity. Delay-slot/p-code behavior requires Phase 4 synthetic decoding. Linux evidence is unavailable until run. The AC3 smoke remains a Phase 5 gate and may expose decompiler limitations without implying payload import failure.
 
-Next action: present PR #2 and wait for concrete user merge approval, then verify the actual head before merge under the reviewed contract. Phase 1 is complete; no batch rollover applies. Do not declare Phase 2 implementation or live gates complete from this planning document.
+Next action: await user direction for Phase 3 planning or execution. Phases 1 and 2 are complete; no batch rollover applies. Linux and later-phase live gates remain unverified.
