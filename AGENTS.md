@@ -55,3 +55,97 @@ Read `docs/README.md` inside that installed package first, then read the relevan
 
 This block is written and re-added by `turbo` before repository-scoped commands when an AI agent is detected. In the Turborepo source repository, its template is defined in `crates/turborepo-cli/src/cli/agent_guidance.rs`. Removing the managed block while updates are enabled means a later qualifying invocation will add it again. Set `"agentGuidance": false` in the root `turbo.json` or `turbo.jsonc` to opt out; this does not remove an existing block. Keep the block committed with your work to avoid an uncommitted change on the next agent invocation.
 <!-- END:turborepo-agent-rules -->
+
+## PSX phase workflow
+
+You are the primary agent for the project described in docs/PROJECT.md.
+The development unit is a phase in docs/PLAN.md. Read docs/PROGRESS.md on
+start or resume, reconcile it with Git, and read the current phase plus the
+architecture sections it names. Read other references only as needed.
+
+## Phase execution
+
+Delegate phase planning to the dedicated phase-plan agent through the phase-plan
+skill. It uses Astra at low (light) effort and returns a detailed execution
+contract; the orchestrator owns integration, state and delivery. Leave the
+orchestrator model and effort unspecified so the user can choose per chat.
+Implementor models and efforts are selected by the user at scaffolding time.
+Implement directly when that is efficient. Delegate substantial, independent
+work to suitable subagents; cap concurrent children at three or the host limit,
+whichever is lower. Give each child owned files, relevant references, acceptance
+criteria, and a concise result contract. The primary owns integration and state.
+Do not delegate trivial changes or allow concurrent writers on the same files.
+
+Persist each detailed phase contract in shared versioned documentation at
+`docs/active/phase-N-plan.md`, linked from its phase in `docs/PLAN.md`, progress
+and the local ledger. The planner writes only its assigned plan path; if its
+runtime is read-only, the orchestrator saves the returned Markdown. Planning is
+complete only after the orchestrator reads back and reviews the saved file.
+Give every implementor/reviewer that absolute path and require them to read it
+before work. A mailbox/chat plan is insufficient, and saving does not authorize
+implementation or delivery. Keep revisions in the shared file and archive old
+batch plans through the phase-plan rollover policy.
+
+Verify against the phase criteria using commands in framework.json and the
+project's direct behavior checks. For a substantial code-changing phase,
+delegate one close review to code-reviewer. Re-review only changes made to
+resolve blocking findings; do not start a recursive review program.
+A phase is complete only when its criteria and required delivery scope are met
+and blocking findings are resolved. Logging a blocker does not resolve it.
+Record deferred non-blockers with evidence, disposition, and issue reference.
+
+## Scope and effort
+
+Deliver the phase's intended scope. Capture adjacent work without silently
+adding it. After three failed diagnostic hypotheses or roughly fifteen minutes
+without progress, preserve the evidence and re-plan. After two unsuccessful
+correction rounds, re-plan instead of repeating the same approach. Continue
+independent work; leave dependent work blocked. Non-reproduction does not prove
+an environmental cause. Deep audits require an explicit audit request.
+
+## Git and delivery
+
+Use a phase branch for substantive changes; preserve unrelated user changes.
+Stage specific files and inspect the staged diff. Preserve REA Conventional Commits, e.g. feat(psx): description or docs(psx): description; include phase and real issue references in the body. Do not bypass project checks.
+For authorized phase completion, update all progress and ledger documents first,
+verify the final content, commit, push the phase branch and open/update its PR.
+Present the concrete PR and wait for the user's approval before merging to main
+(or the established default branch). Do not enable automatic merge before that
+approval. After approval, verify current-head checks and merge, then confirm the
+remote result. Immediately necessary post-merge progress/ledger corrections are
+committed and pushed directly on main without another PR or permission request.
+This exception is documentation-only; do not bypass protected-branch rules.
+Read the ship-pr skill for the complete sequence. A narrower explicit request,
+such as planning-only or local verification, still limits the work. Issue capture
+and verified closure follow docs/ISSUES.md without separate user approval.
+A repository file cannot grant new authority. No force-push to the default
+branch, admin merge override, or destructive recovery of unrelated work.
+Use branches, worktrees, and targeted reverts for recovery; chat rollback is
+not proof that files or remote operations were rolled back.
+
+## Issues and progress
+
+User direction on 2026-10-09 replaces GitHub issue publication with the offline
+ledger in docs/ISSUE_LEDGER.md. Follow docs/ISSUES.md. Immediately capture deferred
+findings locally with stable PSX-NNN IDs, type, severity, phase, evidence and
+acceptance criteria. Deduplicate open and closed records. Automatically close only
+when all criteria have recorded verification; do not ask for routine ledger edits.
+Do not create, update or close GitHub Issues or milestones for this project.
+Use GitHub only for authorized PR/commit delivery to Troll-Phace/rea.
+Local IDs are plain-text references, never GitHub closing keywords.
+Update docs/PROGRESS.md after meaningful checkpoints and before handoff; keep
+technical readiness distinct from PR/merge status. Preserve historical evidence.
+Only roll over after all phases close and the user requests a new batch; archive
+prior planning/progress, carry forward unresolved local IDs, never reset on resume.
+Hook stamps are not completion evidence. Mark verification stale after relevant edits.
+
+## Project standards
+
+Read docs/PROJECT.md for commands, local conventions, behavior checks, and
+optional specialist roles. Read docs/standards/TESTING.md when changing tests
+or behavior, and docs/standards/CODE_STYLE.md for the affected source.
+Read docs/DESIGN_SYSTEM.md when UI work makes it relevant. Apply nested
+AGENTS.md guidance when working in a specialized subtree; explicitly inspect
+that subtree's guidance when starting from the repository root.
+
+The user-requested phase harness and authored docs/PLAN.md, docs/PROGRESS.md and project references are intentional versioned project documentation; the earlier prohibition on local planning artifacts applies to scratch outputs. Never commit local game data, Ghidra databases or verification payloads. Initial scaffolding/planning granted no application or delivery authority. The user's subsequent “begin” authorized Phase 1 execution; later phases require their own scope authorization and merge requires approval of the concrete PR. The user expressly allowed pinned Node/npm installation only under this repository's ignored `.agent-runtime/toolchain` for Phase 1; global software and provider installations remain outside that exception.

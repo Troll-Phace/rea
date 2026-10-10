@@ -25,6 +25,7 @@ import {
   validateDosComLength,
   type ExecutableFormatHint,
 } from "../domain/dosCom.js";
+import { hasPsxExeSignature } from "../domain/psxExe.js";
 import { mzWindowsHeaderOffset } from "../domain/dosMz.js";
 import {
   hasZipSignature,
@@ -36,6 +37,11 @@ import {
   parsePeRecord,
   type ExecutableMetadata,
 } from "../domain/binaryTarget.js";
+
+type ArtifactTargetFormat = Extract<
+  BinaryTarget,
+  { kind: "archive" | "artifact" }
+>["format"];
 
 /** Options for resolving a local binary target and its stable identity. */
 export interface BinaryTargetResolverOptions {
@@ -101,9 +107,19 @@ export const parseBinaryTarget = async (
           availableArchitectures: ["x86"],
         });
       }
+      // Explicit caller selection takes precedence over automatic content detection.
+      const signature = Buffer.alloc(8);
+      if (targetKind !== "database") {
+        const observed = await handle.read(signature, 0, signature.length, 0);
+        throwIfTargetResolutionCancelled(signal);
+        if (observed.bytesRead !== signature.length) signature.fill(0);
+      }
+      const psx = hasPsxExeSignature(signature);
       if (
         targetKind === "database" ||
-        (targetKind === undefined && path.toLowerCase().endsWith(".hop"))
+        (!psx &&
+          targetKind === undefined &&
+          path.toLowerCase().endsWith(".hop"))
       )
         return ok({
           path,
@@ -112,7 +128,9 @@ export const parseBinaryTarget = async (
           kind: "database",
           format: "analysis-database",
         });
-      const artifactFormat = await detectArtifactFormat(path, handle, signal);
+      const artifactFormat = psx
+        ? undefined
+        : await detectArtifactFormat(path, handle, signal);
       if (artifactFormat !== undefined) {
         const identity = {
           path,
@@ -189,13 +207,7 @@ const detectArtifactFormat = async (
   path: string,
   handle: FileHandle,
   signal?: AbortSignal,
-): Promise<
-  | Exclude<
-      BinaryTarget["format"],
-      "analysis-database" | "mach-o" | "elf" | "pe" | "dos-mz" | "dos-com"
-    >
-  | undefined
-> => {
+): Promise<ArtifactTargetFormat | undefined> => {
   throwIfTargetResolutionCancelled(signal);
   const lower = path.toLowerCase();
   const magic = Buffer.alloc(8);
@@ -237,10 +249,7 @@ const namedArtifactFormat = (
 };
 
 const isArchiveFormat = (
-  format: Exclude<
-    BinaryTarget["format"],
-    "analysis-database" | "mach-o" | "elf" | "pe" | "dos-mz" | "dos-com"
-  >,
+  format: ArtifactTargetFormat,
 ): format is Extract<BinaryTarget, { kind: "archive" }>["format"] =>
   ["zip", "ipa", "apk", "msix", "appx", "asar", "dmg", "pkg"].includes(format);
 

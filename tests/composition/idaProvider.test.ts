@@ -21,6 +21,35 @@ afterEach(async () => {
     await rm(root, { recursive: true, force: true });
 });
 
+describe("IDA PSX target admission", () => {
+  it("refuses PSX even with unavailable IDA configuration without creating a connection", () => {
+    const config = parseConfig({});
+    if (!config.ok) throw config.error;
+    let connections = 0;
+    const provider = new IdaProvider(config.value, {}, () => {
+      connections += 1;
+      throw new Error("unexpected IDA connection");
+    });
+    expect(
+      provider.inspectTargetSupport({
+        path: "/tmp/original.psx",
+        sha256: "a".repeat(64),
+        kind: "executable",
+        format: "ps-x-exe",
+        architecture: "mips",
+        availableArchitectures: ["mips"],
+      }),
+    ).toEqual({
+      status: "unsupported",
+      code: "target_format_unsupported",
+      reason:
+        "PS-X EXE is recognized, but PSX analysis is not supported by this REA provider.",
+      diagnostics: { target_kind: "executable", target_format: "ps-x-exe" },
+    });
+    expect(connections).toBe(0);
+  });
+});
+
 describe("IDA provider composition", () => {
   it("discovers without launching and commits adapter semantics without persisting credentials", async () => {
     const { root, target } = await createIdaTarget();

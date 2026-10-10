@@ -67,3 +67,16 @@ Thumbs.db
 /docs/public/product-catalog.json
 /docs/verification/managed-conformance-manifest.json
 /docs/verification/managed-conformance-ledger.json
+
+# Version the explicitly requested project harness; keep other local Codex state private.
+!/.codex/
+/.codex/*
+!/.codex/config.toml
+!/.codex/hooks.json
+!/.codex/agents/
+/.agent-runtime/
+/docs/psx-local/
+/ROMs/
+/extracted/
+*.gpr
+*.rep/

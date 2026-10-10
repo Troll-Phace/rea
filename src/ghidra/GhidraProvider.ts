@@ -133,6 +133,14 @@ export class GhidraProvider implements AnalysisProviderCandidate {
         reason: `Ghidra v1 imports executable targets, not ${target.kind} targets.`,
         diagnostics,
       };
+    if (target.format === "ps-x-exe")
+      return {
+        status: "unsupported",
+        code: "target_format_unsupported",
+        reason:
+          "PS-X EXE is recognized, but PSX analysis is not supported by this REA provider.",
+        diagnostics,
+      };
     if (hostPlatform === "win32")
       return inspectWindowsP0TargetSupport(target, diagnostics);
     if (target.format === "mach-o" && target.availableArchitectures.length > 1)

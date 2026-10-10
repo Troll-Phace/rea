@@ -38,6 +38,7 @@ const subjectSchema = z.object({
     "elf",
     "pe",
     "dos-mz",
+    "ps-x-exe",
     "dos-com",
     "zip",
     "ipa",
@@ -57,7 +58,7 @@ const subjectSchema = z.object({
     "javascript-bundle",
     "entitlements",
   ]),
-  architecture: z.enum(["x86", "x86_64", "arm", "arm64"]).nullable(),
+  architecture: z.enum(["x86", "x86_64", "arm", "arm64", "mips"]).nullable(),
   local_path: z.string(),
 });
 /** Source location attached to an evidence observation. */
@@ -171,7 +172,7 @@ export interface EvidenceSubjectTarget {
   readonly path: string;
   readonly sha256: string;
   readonly format: z.infer<typeof subjectSchema>["format"];
-  readonly architecture?: "x86" | "x86_64" | "arm" | "arm64";
+  readonly architecture?: "x86" | "x86_64" | "arm" | "arm64" | "mips";
 }
 type EvidenceAuthority = z.infer<typeof evidenceAuthoritySchema>;
 type ExecutionEnvironment = z.infer<typeof executionEnvironmentSchema>;

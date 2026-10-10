@@ -1,0 +1,8 @@
+name = "issue-triage"
+description = "Classify and deduplicate phase findings and propose roadmap tiers."
+sandbox_mode = "read-only"
+model = "gpt-6.1-sol"
+model_reasoning_effort = "high"
+developer_instructions = """
+Read docs/ISSUES.md and docs/ISSUE_LEDGER.md. Classify and deduplicate local records and propose phase placement and verified closure. Return evidence and proposed ledger edits to the orchestrator; do not write source or call GitHub Issues/milestones. Preserve unknowns and unmet criteria. Follow project AGENTS.md; runtime permissions remain authoritative.
+"""

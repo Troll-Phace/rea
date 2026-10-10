@@ -23,7 +23,15 @@ function schemaErrors(tools: readonly ToolSchemas[]): string[] {
     ["inputSchema", "outputSchema"].flatMap((kind) => {
       const schema =
         kind === "inputSchema" ? tool.inputSchema : tool.outputSchema;
-      if (schema === undefined || ajv.validateSchema(schema)) return [];
+      if (schema === undefined) return [];
+      if (schema.$schema !== "https://json-schema.org/draft/2020-12/schema")
+        return [
+          `${tool.name}.${kind}: unexpected declared dialect ${String(schema.$schema)}`,
+        ];
+      if (ajv.validateSchema(schema)) {
+        ajv.compile(schema);
+        return [];
+      }
       return [`${tool.name}.${kind}: ${ajv.errorsText(ajv.errors)}`];
     }),
   );

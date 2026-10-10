@@ -413,3 +413,26 @@ it("preserves prototype-named raw and normalized results with aligned identity",
   });
   expect(stripped.evidence_id).not.toBe(evidence.evidence_id);
 });
+
+it("round trips PS-X EXE source identity without implying provider support", () => {
+  const target: BinaryTarget = {
+    path: "/tmp/fixture.psx",
+    sha256: "b".repeat(64),
+    kind: "executable",
+    format: "ps-x-exe",
+    architecture: "mips",
+    availableArchitectures: ["mips"],
+  };
+  const evidence = createEvidence(target, PROVIDER, {
+    operation: "inspect",
+    parameters: {},
+    result: { declared: true },
+  });
+  const parsed = parseEvidence(JSON.parse(JSON.stringify(evidence)));
+  expect(parsed).toEqual(evidence);
+  expect(parsed.subject).toMatchObject({
+    format: "ps-x-exe",
+    architecture: "mips",
+    digest: { sha256: target.sha256 },
+  });
+});

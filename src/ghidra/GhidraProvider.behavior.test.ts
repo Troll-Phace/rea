@@ -55,6 +55,51 @@ const provider = (
   );
 };
 
+describe("Ghidra PSX target admission", () => {
+  it.each(["linux", "darwin", "win32"] as const)(
+    "refuses PSX on %s before installation or client work",
+    (platform) => {
+      let installationProbes = 0;
+      let clients = 0;
+      const ghidra = provider(
+        {
+          ...installationHost(),
+          platform,
+          probeJava: () => {
+            installationProbes += 1;
+            throw new Error("unexpected installation probe");
+          },
+        },
+        () => {
+          clients += 1;
+          throw new Error("unexpected client creation");
+        },
+      );
+      const target: BinaryTarget = {
+        path: "/tmp/original.psx",
+        sha256: "a".repeat(64),
+        kind: "executable",
+        format: "ps-x-exe",
+        architecture: "mips",
+        availableArchitectures: ["mips"],
+      };
+      expect(ghidra.inspectTargetSupport(target)).toMatchObject({
+        status: "unsupported",
+        code: "target_format_unsupported",
+        reason:
+          "PS-X EXE is recognized, but PSX analysis is not supported by this REA provider.",
+        diagnostics: {
+          target_format: "ps-x-exe",
+          architecture: "mips",
+          host_platform: platform,
+        },
+      });
+      expect(installationProbes).toBe(0);
+      expect(clients).toBe(0);
+    },
+  );
+});
+
 describe("Ghidra provider", () => {
   it("commits DOS loader and real-mode language while retaining the CPU family", async () => {
     const ghidra = provider();
@@ -734,7 +779,7 @@ const sessionInfo = () => ({
 
 const executableTarget = (
   format: "mach-o" | "elf" | "pe",
-  architecture: NonNullable<BinaryTarget["architecture"]>,
+  architecture: Extract<BinaryTarget, { format: "pe" }>["architecture"],
 ): BinaryTarget =>
   format === "pe"
     ? peTarget(architecture)
@@ -748,7 +793,7 @@ const executableTarget = (
       };
 
 const peTarget = (
-  architecture: NonNullable<BinaryTarget["architecture"]>,
+  architecture: Extract<BinaryTarget, { format: "pe" }>["architecture"],
 ): Extract<BinaryTarget, { format: "pe" }> => ({
   path: "/tmp/fixture",
   sha256: "a".repeat(64),
