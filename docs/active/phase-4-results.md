@@ -17,8 +17,8 @@ load-image, PSX import, DOS/COM, direct PSX G1/G2 and full host-native G4. R8's
 auxiliary AArch64 ELF relocatable fixture passed independent compilation,
 focused provider proof and every unchanged public alias/name/address/xrefs/
 annotation check. Main host Mach-O controls passed separately. All failed
-predecessors remain preserved below. Final configured checks and the single bounded close review passed; [PR #4](https://github.com/Troll-Phace/rea/pull/4)
-is open; approved merge remains pending. Phase 4 delivery completion is not yet claimed.
+predecessors remain preserved below. Final configured checks and the single bounded close review passed; approved [PR #4](https://github.com/Troll-Phace/rea/pull/4)
+merged at `f2c23fa4f83ffaa43abb86fe9a712206eefb5530` on 2026-10-10T16:10:44Z. Phase 4 delivery is complete.
 
 This lane is real direct production-provider evidence on macOS. Real public
 PSX CLI/stdio MCP operation journeys, Linux, installed-package/fresh-client
@@ -550,9 +550,9 @@ combined 54-test checkpoint while retaining its historical result; the separate
 136-test source and 117-test generic regression results remain valid.
 
 Required Phase 4 native gates pass within these bounds. Final configured
-static/docs checks and the single bounded close review pass. Reviewable
-PR delivery is recorded below; approved merge remains pending; no delivery completion or Phase 5
-acceptance claim is made.
+static/docs checks and the single bounded close review pass. Approved
+PR delivery is recorded below. Phase 4 is complete; no Phase 5 acceptance claim
+is made.
 
 ## Final checks and bounded close review
 
@@ -574,6 +574,9 @@ documentation reconciliation. No extra code review or new native run is inferred
 PSX-009 meets its technical closure criteria and is closed; PSX-008 and PSX-010
 remain deferred. Technical acceptance passed on 2026-10-10. Implementation commit
 `d1947f50c7d6c9713b51dc76a3b9dca8db5ebfc5` was pushed with normal hooks and [PR #4](https://github.com/Troll-Phace/rea/pull/4)
-is open and attached. Runtime/source/helper/test contents remain equal to the
+was opened and attached. Runtime/source/helper/test contents remain equal to the
 measured native run; final documentation-only reconciliation does not revise its
-historical fingerprints. Concrete approval and verified merge remain pending.
+historical fingerprints. The user subsequently approved concrete [PR #4](https://github.com/Troll-Phace/rea/pull/4); approved head `afa2b4f92efb55312a3119da3cbd811643c40474`
+merged at `f2c23fa4f83ffaa43abb86fe9a712206eefb5530` on 2026-10-10T16:10:44Z. Remote MERGED state/main
+identity and identical approved/merge trees were verified; local main synchronized.
+Phase 4 is complete; historical failure and open-PR checkpoints remain preserved.

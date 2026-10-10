@@ -107,8 +107,8 @@ mutation, live/stateful, cursor and identity guards remain in effect.
 checks from bounded real synthetic macOS operations. The fixed decoder and full direct-provider operation gates pass. Final host
 regressions pass with Mach-O host controls and an auxiliary ELF relocatable
 entry-alias fixture; Mach-O named non-entry-label coverage remains unverified.
-The single phase-close review and final configured checks pass; approved delivery
-remains pending. Public real
+The single phase-close review and final configured checks pass; approved
+[PR #4](https://github.com/Troll-Phace/rea/pull/4) merged on 2026-10-10. Public real
 CLI/MCP operation journeys, Linux, game inputs and installed-package/fresh-client
 acceptance remain Phase 5. Static queries do not establish runtime reachability
 or complete indirect targets.
