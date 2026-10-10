@@ -1,18 +1,18 @@
 # PSX issue ledger
 
 Canonical offline ledger. Batch psx-support-2026-10. Next ID: PSX-009.
-No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR #1; PSX-001 is closed. Phase 2 is complete through approved and verified [PR #2](https://github.com/Troll-Phace/rea/pull/2); PSX-002 is closed; PSX-006 is closed by the verified default-only production policy. Phase 3 technical acceptance and bounded review passed; [PR #3](https://github.com/Troll-Phace/rea/pull/3) is open; user approval and merge remain pending. PSX-007 is closed by measured adapted provenance and mutation evidence; Phases 4–5 remain planned and unauthorized.
+No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR #1; PSX-001 is closed. Phase 2 is complete through approved and verified [PR #2](https://github.com/Troll-Phace/rea/pull/2); PSX-002 is closed; PSX-006 is closed by the verified default-only production policy. Phase 3 is complete through approved [PR #3](https://github.com/Troll-Phace/rea/pull/3); PSX-003 is closed. PSX-007 is closed by measured adapted provenance and mutation evidence; Phases 4–5 remain planned and unauthorized.
 
-| ID      | Type    | Severity | Status      | Phase   | Title                                               |
-| ------- | ------- | -------- | ----------- | ------- | --------------------------------------------------- |
-| PSX-001 | feature | high     | closed      | 1       | Format and loader contract                          |
-| PSX-002 | feature | high     | closed      | 2       | Deterministic Ghidra PSX import                     |
-| PSX-003 | feature | high     | in-progress | 3       | Independent memory and entry evidence               |
-| PSX-004 | feature | medium   | open        | 4       | MIPS queries and public contract parity             |
-| PSX-005 | test    | high     | open        | 5       | Real-provider, package and local acceptance         |
-| PSX-006 | bug     | high     | closed      | 2       | Installed PSX RAM option value-class mismatch       |
-| PSX-007 | feature | high     | closed      | 3       | Installed PSX loader lacks original file provenance |
-| PSX-008 | test    | low      | open        | Backlog | PSX startup diagnostic truncation coverage gap      |
+| ID      | Type    | Severity | Status | Phase   | Title                                               |
+| ------- | ------- | -------- | ------ | ------- | --------------------------------------------------- |
+| PSX-001 | feature | high     | closed | 1       | Format and loader contract                          |
+| PSX-002 | feature | high     | closed | 2       | Deterministic Ghidra PSX import                     |
+| PSX-003 | feature | high     | closed | 3       | Independent memory and entry evidence               |
+| PSX-004 | feature | medium   | open   | 4       | MIPS queries and public contract parity             |
+| PSX-005 | test    | high     | open   | 5       | Real-provider, package and local acceptance         |
+| PSX-006 | bug     | high     | closed | 2       | Installed PSX RAM option value-class mismatch       |
+| PSX-007 | feature | high     | closed | 3       | Installed PSX loader lacks original file provenance |
+| PSX-008 | test    | low      | open   | Backlog | PSX startup diagnostic truncation coverage gap      |
 
 ## PSX-001 — Format and loader contract
 
@@ -36,14 +36,14 @@ No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR 
 
 ## PSX-003 — Independent memory and entry evidence
 
-- Status: in-progress; type: feature; severity: high; phase: 3.
+- Status: closed; type: feature; severity: high; phase: 3.
 - Owner: orchestrator, with task delegation per PLAN.md.
-- Evidence: detailed [Phase 3 contract](active/phase-3-plan.md) saved by Astra/low on 2026-10-10 and reviewed by the orchestrator against `c498013fee5a61d4900a5edb7a9743f2a42b5c75`. It defines the PSX result/status contract, independent source/offset/coverage/entry checks, REA-owned producer provenance, semantic mutations and scoped real synthetic acceptance. The user authorized execution on 2026-10-10; implementation is in progress on `codex/psx-phase-3`, with the feasibility, full public and regression lanes now passed; technical acceptance, package checks and bounded review passed. [PR #3](https://github.com/Troll-Phace/rea/pull/3) is open; user approval and merge remain pending.
+- Evidence: detailed [Phase 3 contract](active/phase-3-plan.md) saved by Astra/low on 2026-10-10 and reviewed by the orchestrator against `c498013fee5a61d4900a5edb7a9743f2a42b5c75`. It defines the PSX result/status contract, independent source/offset/coverage/entry checks, REA-owned producer provenance, semantic mutations and scoped real synthetic acceptance. The user authorized execution on 2026-10-10; implementation completed on `codex/psx-phase-3`, with the feasibility, full public and regression lanes now passed; technical acceptance, package checks and bounded review passed. [PR #3](https://github.com/Troll-Phace/rea/pull/3) merged after user approval at `f79245637b39158144f06acc9ecc7bdd14f94965` on 2026-10-10T06:23:26Z.
 - Dependencies: Phase 2 accepted; PSX-007 adapted producer-provenance criteria are now closed. Original-loader lineage remains absent.
 - Done-criteria: Payload coverage, source offsets, entry/context and contradictions independently checked; mutation tests and real evidence pass; Phase 3 delivery satisfied.
 - Tasks and exact verification contract: [shared Phase 3 plan](active/phase-3-plan.md), P3-00/P3-11/P3-12/P3-13/P3-21/P3-22/P3-90; overview in PLAN.md. Early producer preservation/rollback feasibility must pass before broader integration. Instruction/function semantics remain Phase 4.
 - Technical acceptance: [Phase 3 results](active/phase-3-results.md) record 328 integrated source tests, 130 focused boundary tests (one Windows-only skip), required real feasibility/public/replay and PSX/DOS/COM regressions, current package integrity and bounded close review. No unresolved findings remain; PSX-007 is closed.
-- Closure evidence/date/commit/PR: technical acceptance passed 2026-10-10; record remains in progress because [PR #3](https://github.com/Troll-Phace/rea/pull/3) is open and approved merge delivery remains pending. Implementation commit `65e023140e60c0664aa3845b136ec6c82a22accf`; current-head static checks and normal hooks passed.
+- Closure evidence/date/commit/PR: closed 2026-10-10. Implementation commit `65e023140e60c0664aa3845b136ec6c82a22accf`; [PR #3](https://github.com/Troll-Phace/rea/pull/3) merged after user approval at `f79245637b39158144f06acc9ecc7bdd14f94965` on 2026-10-10T06:23:26Z. Approved head `50e6b69cc8d22c5b6d06cdbe58889965fad28503` matched local/remote identity, passed current-head `npm run check`, retained all 37 measured runtime/source fingerprints and had CLEAN merge state with no advertised remote checks. Normal squash merge, GitHub MERGED state and remote/local main synchronization verified. All technical, bounded-review and approved-delivery criteria satisfied. Historical failure and scoped macOS evidence remain in [Phase 3 results](active/phase-3-results.md); unperformed Linux/game/runtime/later-phase gates remain explicit.
 
 ## PSX-006 — Installed PSX RAM option value-class mismatch
 
@@ -67,7 +67,7 @@ No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR 
 - Historical R1 gate outcome: report `docs/psx-local/phase-3-load-image-runs/run-dd9PJz/report.json`, SHA-256 `dc6602b3ed6d70b5d5026c944d5f6487c09b314e6e5ade8b562e5e03f7ff0d73`, records four actual applied cases plus one unchanged unavailable case. Forced cancellation reports rollback comparison failure; no raw rollback probe evidence survived, and tamper remains unrun. Sources/snapshots, 2170 assets and relevant code/bundle postchecks are unchanged; owned workspace removed with verified empty lineage and no cleanup errors. Full rollback remains a blocker, not resolved by positive adaptation or cleanup. A bounded transaction-ownership/failure-capture replan is pending reviewed readback.
 - Historical reviewed R2 correction: public script ownership APIs provide a sole-transaction window before analysis. The wrapper releases only its own implicit transaction; direct helper calls refuse any active transaction, and actual final closure precedes full commit/rollback recapture. Nine fresh real cases, including active-owner refusal and the unchanged production preScript entrypoint, are required. Failure evidence is captured before cleanup without changing old reports. Producer implementation/verification is pending; PSX-007 and dependent PSX-003 remain blocked.
 - Revised feasibility checkpoint passed: all nine R2 real feasibility cases in `docs/psx-local/phase-3-load-image-runs/run-GSE38p/report.json`, SHA-256 `d1f19c48e804ee35202279c7a9d6e77acead0406087e39c894021a79b3adcdda`, were reviewed at current recorded source. Cancellation and tamper prove completed full rollback with retained observations/journals; active-owner refusal and actual production-wrapper completion pass. Sources, 2170 assets, relevant code/dist/bundle unchanged; workspace removed with empty verified lineage and no retained roots/errors. At that checkpoint the early gate was resolved; authenticated integration, independent live-observation mutations, public acceptance and bounded review were pending. Their later completion is recorded in closure evidence below. Original-loader provenance remains absent.
-- Closure evidence/date/commit/PR: closed 2026-10-10. Nine-case real feasibility report SHA-256 `d1f19c48e804ee35202279c7a9d6e77acead0406087e39c894021a79b3adcdda`; full public/direct report SHA-256 `d9e2e2ee7860e579440547b7877d7883b0e4bf473a22a8005f2fbe0890a9b75f` independently verifies genuine FileBytes, complete source-backed payload/entry and nine source-offset/original-digest/modified-digest mutation rejections. Historical no-provenance/failed attempts remain preserved. Source/asset identity, complete failure rollback and exact owned cleanup passed; one bounded close review and scoped ownership-fix re-review passed. [Phase 3 results](active/phase-3-results.md) retain commands and limitations. Closure concerns the REA adaptation criteria only; PSX-003 separately remains in progress pending approved merge delivery.
+- Closure evidence/date/commit/PR: closed 2026-10-10. Nine-case real feasibility report SHA-256 `d1f19c48e804ee35202279c7a9d6e77acead0406087e39c894021a79b3adcdda`; full public/direct report SHA-256 `d9e2e2ee7860e579440547b7877d7883b0e4bf473a22a8005f2fbe0890a9b75f` independently verifies genuine FileBytes, complete source-backed payload/entry and nine source-offset/original-digest/modified-digest mutation rejections. Historical no-provenance/failed attempts remain preserved. Source/asset identity, complete failure rollback and exact owned cleanup passed; one bounded close review and scoped ownership-fix re-review passed. [Phase 3 results](active/phase-3-results.md) retain commands and limitations. Closure concerns the REA adaptation criteria only; PSX-003 separately records completed approved merge delivery.
 
 ## PSX-004 — MIPS queries and public contract parity
 
