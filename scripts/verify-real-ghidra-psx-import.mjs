@@ -407,15 +407,18 @@ async function verifyMcp(path, sha256, expected) {
     assert.equal(
       status.analysis_provider_binding.analysis_profile.parameters
         .psx_operation_scope,
-      "inventory-and-load-image-v1",
+      "inventory-load-image-and-static-functions-v1",
     );
     const gated = await client.callTool({
-      name: "read_function_instructions",
-      arguments: { procedure: `0x${expected.initialPc.toString(16)}` },
+      name: "annotate_native_function",
+      arguments: {
+        procedure: `0x${expected.initialPc.toString(16)}`,
+        name: "refused",
+      },
     });
     const rejected = requireMcpToolError(gated);
     assert.equal(rejected.code, "capability_unavailable");
-    assert.match(rejected.details.reason, /PSX.*Phase 4/u);
+    assert.match(rejected.details.reason, /PSX observational scope/u);
     const runtimeObservation = await captureLiveRuntime(
       status.analysis_run.run_id,
       sha256,

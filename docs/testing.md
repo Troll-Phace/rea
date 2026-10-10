@@ -517,7 +517,8 @@ launch behavior. Deterministic recording-provider tests verify missing/duplicate
 assets, handshake mutations, cancellation and snapshots separately.
 
 At the Phase 2 checkpoint PSX load-image verification was unsupported.
-Function/instruction operations remain gated pending Phase 4. The historical
+Function/instruction operations were gated at that checkpoint; their separate
+Phase 4 lane is described below. The historical
 Phase 2 report does not establish source-backed provenance; the separate Phase 3
 lane below verifies the adapted static image. Neither lane proves
 delay-slot semantics, game behavior, installed-package operation or
@@ -563,10 +564,36 @@ The [Phase 3 results](active/phase-3-results.md) record actual current coverage
 and failed attempts. Original-loader FileBytes remain absent; successful
 adaptation preserves operational state and complete original journal evidence,
 while explicitly reporting live journal recreation. Verified static coverage
-does not establish runtime behavior. Linux, patched AC3, MIPS query semantics
-and installed-package/fresh-client acceptance remain later gates. Real PSX
+does not establish runtime behavior. Linux, patched AC3 and installed-package/fresh-client acceptance remain later
+gates. MIPS query semantics have their separate Phase 4 lane below. Real PSX
 import, DOS and COM regressions are required after integration; package integrity
 and deterministic tests do not substitute for real-provider proof.
+
+## PSX static operations — Phase 4 lane
+
+`node scripts/verify-real-ghidra-psx-operations.mjs --stage decoder` measures the
+original generated instruction-flow fixture through the canonical production
+provider. It requires the caller-supplied Ghidra/JDK and accepts no executable
+path. The fixed independent oracle checks exact words, Listing slot flags/depth
+and addresses, p-code RETURN, Listing conditional/computed flags, static targets,
+nondecoded statuses, strings/data references and actual function tail containment.
+A semantic contradiction preserves raw evidence and blocks acceptance until a
+bounded saved-contract revision is reviewed.
+
+The same command without arguments runs a fresh complete operation matrix,
+including meaningful entry/leaf decompilation, dossiers, instruction windows,
+assembly, incoming/outgoing references and explicit annotation/type refusals.
+Reports retain exact source/profile/asset/code identities, primary/capture/cleanup
+failures and ownership. Acceptance requires unchanged sources/assets, awaited
+cleanup and verified empty lineage. Failed reports remain immutable.
+
+Actual SDK-converted schemas, CLI/MCP parity, Evidence retention and snapshot
+identity rejection are separately tested with explicitly simulated providers.
+These checks do not establish real engine behavior. The direct macOS native lane
+and required PSX/DOS/COM/host-native regressions are recorded in
+[Phase 4 results](active/phase-4-results.md). Full real public CLI/stdio MCP
+operation journeys, Linux, game smoke and installed-package/fresh-client
+acceptance remain Phase 5. Package integrity alone does not establish them.
 
 ## Apple Interface Builder archives
 

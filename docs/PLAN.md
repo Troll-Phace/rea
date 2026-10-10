@@ -1,6 +1,6 @@
 # PS-X EXE support — phased implementation plan
 
-Status: Phase 1 complete, accepted and merged through [PR #1](https://github.com/Troll-Phace/rea/pull/1); Phase 2 complete, accepted and merged through approved [PR #2](https://github.com/Troll-Phace/rea/pull/2); Phase 3 complete, accepted and merged through approved [PR #3](https://github.com/Troll-Phace/rea/pull/3); Phases 4–5 remain planned and unauthorized. Follow the phase delivery workflow through a reviewable PR; merging requires approval of that concrete PR. This document grants no new authority. Repository: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea`; fork `Troll-Phace/rea`, baseline handoff `7aa4d768`, package `6.3.0`.
+Status: Phase 1 complete, accepted and merged through [PR #1](https://github.com/Troll-Phace/rea/pull/1); Phase 2 complete, accepted and merged through approved [PR #2](https://github.com/Troll-Phace/rea/pull/2); Phase 3 complete, accepted and merged through approved [PR #3](https://github.com/Troll-Phace/rea/pull/3); Phase 4 technical acceptance and bounded close review passed; [PR #4](https://github.com/Troll-Phace/rea/pull/4) is open; approved merge remains pending. Phase 5 remains planned and unauthorized. Follow the phase delivery workflow through a reviewable PR; merging requires approval of that concrete PR. This document grants no new authority. Repository: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea`; fork `Troll-Phace/rea`, baseline handoff `7aa4d768`, package `6.3.0`.
 
 ## Outcome and boundaries
 
@@ -138,6 +138,18 @@ Acceptance: independent semantic mutations to start, source offset, digest, payl
 
 ## Phase 4 — MIPS operations, delay slots, and public parity
 
+Detailed shared execution contract: [Phase 4 plan](active/phase-4-plan.md).
+This contract refines P4.1/P4.2 into P4-00/P4-11/P4-12/P4-21/P4-22/P4-90.
+It defines optional measured delay-slot evidence, decoded RETURN precedence,
+an explicit PSX read-query allowlist, semantic profile invalidation, SDK-converted
+schemas and CLI/MCP/snapshot parity. Annotation and native type inspection remain
+gated. A bounded real macOS synthetic production-provider operation gate precedes
+acceptance; full public PSX operation/installed-package/game lanes remain Phase 5. Planning was
+completed on 2026-10-10; the user then authorized Phase 4 execution.
+Implementation, G1/G2, public adapter/snapshot tests, required real synthetic
+regressions, final configured checks and the single bounded close review passed.
+[PR #4](https://github.com/Troll-Phace/rea/pull/4) is open at implementation commit `d1947f50c7d6c9713b51dc76a3b9dca8db5ebfc5`; concrete PR approval is required before merge. Local issue PSX-004 is in progress.
+
 Objective: useful existing queries without x86-derived assumptions or unsupported runtime claims. Dependencies: Phase 3; Phase 1 already completed generic identity propagation. Delivery endpoint: complete source/boundary contracts and real synthetic operation assertions ready for full public lane.
 
 ### P4.1 — decoded instruction and function semantics
@@ -206,6 +218,6 @@ Pinned Node 24.18.0/npm 11.16.0 and locked dependencies were established for Pha
 
 ## Risks and next action
 
-Phase 1 measured loader/class identity and demonstrated the RAM-option failure; Phase 2 verified the saved default-only production policy and observed startup agreement. Loss of FileBytes provenance remains PSX-007 and requires a Phase 3 producer-boundary plan. Relevant SDK assets may alter analysis and must participate in profile identity. Delay-slot/p-code behavior requires Phase 4 synthetic decoding. Linux evidence is unavailable until run. The AC3 smoke remains a Phase 5 gate and may expose decompiler limitations without implying payload import failure.
+Phase 1 measured loader/class identity and demonstrated the RAM-option failure; Phase 2 verified the saved default-only production policy and observed startup agreement. Phase 3 closed PSX-007 through measured REA-adapted FileBytes provenance, independent mutations and preservation/rollback evidence; original-loader lineage remains absent. Relevant SDK assets may alter analysis and must participate in profile identity. Delay-slot/p-code behavior requires Phase 4 synthetic decoding. Linux evidence is unavailable until run. The AC3 smoke remains a Phase 5 gate and may expose decompiler limitations without implying payload import failure.
 
-Next action: execute the authorized [Phase 3 contract](active/phase-3-plan.md), including its documented ephemeral Program adaptation and early feasibility gate. Phases 1 and 2 are complete; no batch rollover applies. Linux and later-phase live gates remain unverified.
+Next action: execute the authorized [Phase 4 contract](active/phase-4-plan.md). Phases 1–3 are complete; Phase 5 remains unauthorized and no batch rollover applies. Linux and later-phase live gates remain unverified.

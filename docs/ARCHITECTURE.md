@@ -25,8 +25,8 @@ errors and owned cleanup. The policy initially admits the KSEG0 2 MiB RAM bank
 and preserves exact source declarations rather than normalizing aliases.
 
 At the Phase 2 checkpoint only inventory observations were exposed and
-load-image verification remained unsupported. PSX function/instruction operations remain unavailable until their
-Phase 4 semantics are verified. Empty FileBytes, missing SP and uninitialized
+load-image verification remained unsupported. PSX function/instruction operations were unavailable at that checkpoint.
+The Phase 4 query slice below defines their current admission and verification gates. Empty FileBytes, missing SP and uninitialized
 fill remain unknown or measured limitations. No producer provenance repair is
 included at that checkpoint; Phase 3 resolves the adapted-provenance dependency below.
 
@@ -74,6 +74,44 @@ enumerated adapted static payload. GP/SP and fill declarations remain separate
 from observations, including explicit unknowns. Original-loader source lineage,
 runtime correctness and MIPS query semantics are not established. Current
 verification and preserved failures are in [Phase 3 results](active/phase-3-results.md).
+
+## Phase 4 static query slice
+
+The [shared Phase 4 contract](active/phase-4-plan.md), including R1, admits an
+explicit provider-owned set of static instruction, call-target, function,
+decompiler and reference queries. Annotation and native data-type queries are
+refused before bridge dispatch. Source preparation and image interpretation are
+unchanged. The neutral optional `delay_slots` contract preserves older captures;
+new Ghidra responses report measured Listing slot membership, owned depth and
+complete contiguous slot addresses, or explicit unknown coverage with limitations.
+
+Flow kind prioritizes Listing calls, decoded p-code RETURN, Listing jumps,
+terminal and fallthrough. Conditional/computed flags remain Listing FlowType
+properties. A RETURN with computed false does not establish a known or direct
+runtime return address. Classification evidence preserves both Listing and
+p-code observations. Function bodies and tail-slot containment come from the
+actual AddressSet and Listing; no body extension follows from arithmetic.
+
+The provider checks both PSX scope `inventory-load-image-and-static-functions-v1`
+and Ghidra flow interpretation `decoded-return-before-jump-and-delay-slots-v2`.
+The latter intentionally invalidates older Ghidra semantic profiles, including
+non-PSX targets. Other provider profiles remain unchanged; optional-field omission
+alone does not invalidate their captures. Existing Evidence and snapshot workflows
+preserve target/profile identity and reject mismatched reuse before query dispatch.
+Snapshot document scope comes from each named input contract's actual `document`
+field. Load-image inspection has a strict empty input and can therefore retain
+and replay its query result without inventing a document argument. Existing
+mutation, live/stateful, cursor and identity guards remain in effect.
+
+[Phase 4 results](active/phase-4-results.md) separate deterministic adapter/schema
+checks from bounded real synthetic macOS operations. The fixed decoder and full direct-provider operation gates pass. Final host
+regressions pass with Mach-O host controls and an auxiliary ELF relocatable
+entry-alias fixture; Mach-O named non-entry-label coverage remains unverified.
+The single phase-close review and final configured checks pass; approved delivery
+remains pending. Public real
+CLI/MCP operation journeys, Linux, game inputs and installed-package/fresh-client
+acceptance remain Phase 5. Static queries do not establish runtime reachability
+or complete indirect targets.
 
 ## Later proposed analysis
 

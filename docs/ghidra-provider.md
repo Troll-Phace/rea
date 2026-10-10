@@ -52,8 +52,8 @@ the terminal import report follows the serving postScript. The owned PSX
 snapshot coordinate is canonicalized before transport. A zero process exit
 alone cannot establish import success.
 
-Phase 2 admitted inventory observations. PSX function analysis, instruction
-queries, call-target analysis and annotations are unavailable until Phase 4.
+Phase 2 admitted inventory observations; function and instruction queries were
+unavailable at that checkpoint. Phase 4 defines the static query slice below.
 At that checkpoint `inspect_native_load_image` returned `unsupported` because
 matching bytes could not establish original source offsets. Phase 3 adds the
 adapted static-image evidence described below. Missing SP, uninitialized fill
@@ -100,12 +100,35 @@ old PSX snapshot profiles cannot silently reuse the new interpretation. DOS and
 COM contracts retain their existing behavior.
 
 Verified applies to the enumerated REA-adapted static image, not original-loader
-lineage or runtime execution. Function/instruction queries remain gated for
-Phase 4. See the [contract](active/phase-3-plan.md) and
+lineage or runtime execution. Function/instruction semantics have their separate
+Phase 4 verification gate below. See the [contract](active/phase-3-plan.md) and
 [results](active/phase-3-results.md) for current measured coverage; direct
 noanalysis feasibility, public auto-analysis acceptance and replay mutations are
 separate evidence. Linux, game inputs and installed-package/fresh-client
 acceptance remain unperformed.
+
+## PSX Phase 4 static queries
+
+The provider admits instruction and call-target inspection, function dossiers,
+assembly, decompilation, instruction windows, callers/callees and references.
+Annotation and native data-type inspection remain refused before bridge dispatch.
+The [Phase 4 contract](active/phase-4-plan.md) requires real synthetic decoder and
+operation checks; [results](active/phase-4-results.md) record their current status.
+
+New Ghidra instruction results include measured `delay_slots`: Listing slot
+membership, owned depth and complete contiguous addresses, or nulls when unknown.
+Nondecoded addresses have all three slot values null. Ordinary instructions own
+zero slots with an empty address list; a slot can itself own zero slots. Flow kind
+uses decoded RETURN before jump. Conditional/computed are observed Listing flags;
+computed false on a return does not establish a direct or known runtime target.
+Static call targets preserve unresolved computed calls.
+
+PSX profiles bind scope `inventory-load-image-and-static-functions-v1` and flow
+semantics `decoded-return-before-jump-and-delay-slots-v2`; both are checked when
+opening. All Ghidra profiles use the new flow version and older Ghidra profile
+snapshots are intentionally stale. Optional omission of `delay_slots` remains
+compatible for other providers. Linux, game/runtime analysis and full public
+operation/package/fresh-client acceptance remain separate Phase 5 gates.
 
 ## Admitted function-analysis semantics
 

@@ -51,9 +51,9 @@ const CURSOR_DEFAULT_OPERATIONS: ReadonlySet<AnalysisOperation> = new Set([
 ]);
 
 const DOCUMENT_SCOPED_OPERATIONS: ReadonlySet<string> = new Set(
-  OFFICIAL_TOOL_CONTRACTS.map(({ name }) => name).filter(
-    (name) => name !== "current_document" && name !== "list_documents",
-  ),
+  OFFICIAL_TOOL_CONTRACTS.filter(({ inputSchema }) =>
+    Object.hasOwn(inputSchema.shape, "document"),
+  ).map(({ name }) => name),
 );
 
 /** Maximum duplicated result bindings retained across direct and workflow queries. */

@@ -9,14 +9,20 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { fixtureDosLoadImage } from "./GhidraLoadImage.fixture.js";
-import { jsonValueSchema } from "../domain/jsonValue.js";
+import { jsonObjectSchema, jsonValueSchema } from "../domain/jsonValue.js";
 
 import { parseConfig } from "../config/parseConfig.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { parseExecutableHeader } from "../domain/binaryTarget.js";
 import { GhidraProvider } from "./GhidraProvider.js";
-import type { GhidraProviderClientFactory } from "./GhidraProviderClient.js";
-import type { GhidraInstallationHost } from "./GhidraInstallation.js";
+import {
+  createGhidraProviderClient,
+  type GhidraProviderClientFactory,
+} from "./GhidraProviderClient.js";
+import {
+  inspectGhidraInstallation,
+  type GhidraInstallationHost,
+} from "./GhidraInstallation.js";
 import { GHIDRA_SESSION_CAPABILITIES } from "./GhidraSessionValues.js";
 import { err, ok } from "../domain/result.js";
 import { GhidraSessionError } from "./GhidraSessionError.js";
@@ -24,6 +30,12 @@ import { silentLogger } from "../logger.js";
 import { ProviderCleanupError } from "../domain/providerCleanupError.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import { ProviderStartupDeadline } from "../process/ProviderDeadline.js";
+import { createAnalysisProfile } from "../domain/analysisProfile.js";
+import { psxFixtureCommitment } from "../../tests/fixtures/ghidraPsxImport.js";
+import {
+  ghidraFunctionDossier,
+  ghidraFunctionIdentity,
+} from "../domain/ghidraValues.fixture.js";
 
 const INSTALL = "/opt/ghidra_12.1.4_PUBLIC";
 const installationHost = (): GhidraInstallationHost => ({
@@ -97,6 +109,211 @@ describe("Ghidra PSX target admission", () => {
       expect(clients).toBe(0);
     },
   );
+});
+
+const psxOperationOutputs = () => {
+  const identity = ghidraFunctionIdentity();
+  // The seam reports contract values, not measured PSX decoder/decompiler facts.
+  return jsonObjectSchema.parse({
+    inspect_native_instruction: {
+      address: "0x80010008",
+      status: "decoded",
+      procedure: "0x80010000",
+      architecture: "PSX:LE:32:default",
+      mode: "default",
+      bytes: "2040000c",
+      length: 4,
+      mnemonic: "jal",
+      raw_disassembly: "jal 0x80010080",
+      operands: [],
+      flow: {
+        kind: "call",
+        conditional: false,
+        computed: false,
+        direct_destinations: ["0x80010080"],
+      },
+      references: [],
+      delay_slots: {
+        is_in_delay_slot: false,
+        depth: 1,
+        addresses: ["0x8001000c"],
+      },
+      limitations: [],
+    },
+    resolve_native_call_targets: {
+      call_site: "0x80010034",
+      procedure: "0x80010000",
+      status: "unresolved",
+      mechanism: "computed",
+      targets: [],
+      limitations: [],
+    },
+    analyze_function: ghidraFunctionDossier(),
+    procedure_assembly: "synthetic assembly",
+    procedure_callees: [],
+    procedure_callers: [],
+    procedure_info: {
+      name: identity.name,
+      entrypoint: identity.address,
+      basicblock_count: 1,
+      length: identity.body.total_bytes,
+      signature: null,
+      locals: [],
+      classification: identity.classification,
+      body: identity.body,
+    },
+    procedure_pseudo_code: "synthetic decompiler text",
+    read_function_instructions: {
+      procedure: identity,
+      instructions: [],
+      limitations: [],
+    },
+    procedure_references: {
+      procedure: identity,
+      direction: "outgoing",
+      references: [],
+      reference_kinds_available: true,
+      unresolved_calls: [],
+    },
+    xrefs: [],
+  });
+};
+
+const psxClientFixture = () => {
+  const config = parseConfig({ GHIDRA_INSTALL_DIR: INSTALL });
+  if (!config.ok) throw config.error;
+  const { source_snapshot_path: _transportPath, ...commitment } =
+    psxFixtureCommitment();
+  const target: BinaryTarget = {
+    path: "/synthetic.psx",
+    sha256: commitment.source_sha256,
+    kind: "executable",
+    format: "ps-x-exe",
+    architecture: "mips",
+    availableArchitectures: ["mips"],
+  };
+  const calls: string[] = [];
+  let closes = 0;
+  const outputs = psxOperationOutputs();
+  const client = createGhidraProviderClient({
+    config: config.value,
+    environment: {},
+    logger: silentLogger,
+    target,
+    installation: inspectGhidraInstallation(
+      {
+        environment: {},
+        installDir: INSTALL,
+        platform: "linux",
+        architecture: "x64",
+      },
+      installationHost(),
+    ),
+    profile: createAnalysisProfile(
+      { id: "ghidra", name: "Ghidra", version: "12.1.4" },
+      {
+        psx_import: jsonValueSchema.parse(commitment),
+        psx_asset_inventory: [],
+        psx_language_assets: [],
+        psx_analyzer_classes: [],
+        psx_operation_scope: "inventory-load-image-and-static-functions-v1",
+        instruction_flow_evidence:
+          "decoded-return-before-jump-and-delay-slots-v2",
+        psx_source_provenance: "rea-psx-filebytes-rebind-v2",
+        psx_preparation_transaction: "exclusive-top-level-v1",
+        startup_agreement: "psx-observed-import-and-provenance-v3",
+        load_image_evidence: "independent-psx-adapted-payload-entry-v2",
+      },
+    ),
+    clientFactory: () => ({
+      start: async () => ok(sessionInfo()),
+      callTool: async (operation) => {
+        calls.push(operation);
+        const value = outputs[operation];
+        if (value === undefined)
+          throw new Error(`unmodeled operation ${operation}`);
+        return ok(value);
+      },
+      close: async () => {
+        closes++;
+        return ok(null);
+      },
+    }),
+  });
+  return { client, calls, closes: () => closes };
+};
+
+describe("PSX observational operation admission through the production adapter", () => {
+  it("routes every admitted static function query and retains its canonical profile", async () => {
+    const fixture = psxClientFixture();
+    try {
+      for (const operation of [
+        "inspect_native_instruction",
+        "resolve_native_call_targets",
+        "analyze_function",
+        "procedure_assembly",
+        "procedure_callees",
+        "procedure_callers",
+        "procedure_info",
+        "procedure_pseudo_code",
+        "read_function_instructions",
+        "procedure_references",
+        "xrefs",
+      ] as const) {
+        const result = await fixture.client.execute(
+          operation,
+          [
+            "inspect_native_instruction",
+            "resolve_native_call_targets",
+            "xrefs",
+          ].includes(operation)
+            ? { address: "0x80010008" }
+            : { procedure: "0x80010000" },
+        );
+        if (!result.ok) throw result.error;
+        expect(
+          result.value.analysisProfile?.parameters.psx_operation_scope,
+        ).toBe("inventory-load-image-and-static-functions-v1");
+        expect(fixture.calls.at(-1)).toBe(operation);
+      }
+      expect(fixture.calls).toHaveLength(11);
+    } finally {
+      const closed = await fixture.client.close();
+      expect(closed).toEqual(ok(null));
+    }
+    expect(fixture.closes()).toBe(1);
+  });
+
+  it("refuses annotation and data-type requests before bridge dispatch with distinct reasons", async () => {
+    const fixture = psxClientFixture();
+    try {
+      for (const [operation, input, reason] of [
+        [
+          "annotate_native_function",
+          { procedure: "0x80010000", name: "authored" },
+          "annotation mutation",
+        ],
+        [
+          "inspect_native_data_type",
+          { address: "0x80010100" },
+          "data-type inspection",
+        ],
+      ] as const) {
+        const result = await fixture.client.execute(operation, input);
+        expect(result).toMatchObject({
+          ok: false,
+          error: {
+            _tag: "AnalysisCapabilityUnavailableError",
+            reason: expect.stringContaining(reason),
+          },
+        });
+      }
+      expect(fixture.calls).toEqual([]);
+    } finally {
+      const closed = await fixture.client.close();
+      expect(closed).toEqual(ok(null));
+    }
+  });
 });
 
 describe("Ghidra provider", () => {

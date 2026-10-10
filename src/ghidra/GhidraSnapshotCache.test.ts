@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createTestBinarySession } from "../../tests/fixtures/binarySession.js";
 import { parseConfig } from "../config/parseConfig.js";
+import type { JsonValue } from "../domain/jsonValue.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { functionDossierSchema } from "../domain/hopperValues.js";
 import { ghidraFunctionDossier } from "../domain/ghidraValues.fixture.js";
@@ -131,35 +132,65 @@ const open = async (session: ReturnType<typeof fixture>["session"]) => {
 
 const identity = { id: "ghidra", name: "Ghidra", version: "12.1.4" };
 const recording = (
-  assetDigest = "b".repeat(64),
-  startup = "psx-observed-import-and-provenance-v3",
-  provenance = "rea-psx-filebytes-rebind-v2",
-  transaction = "exclusive-top-level-v1",
+  options: {
+    assetDigest?: string;
+    startup?: string;
+    provenance?: string;
+    transaction?: string;
+    semantics?: Readonly<Record<string, JsonValue>>;
+    selectedIdentity?: typeof identity;
+    compatible?: { operation: "inspect_native_instruction"; result: JsonValue };
+  } = {},
 ) => {
+  const {
+    assetDigest = "b".repeat(64),
+    startup = "psx-observed-import-and-provenance-v3",
+    provenance = "rea-psx-filebytes-rebind-v2",
+    transaction = "exclusive-top-level-v1",
+    semantics = {},
+    selectedIdentity = identity,
+    compatible,
+  } = options;
   let calls = 0;
-  const profile = createAnalysisProfile(identity, {
-    target_format: "ps-x-exe",
-    asset_inventory_digest: assetDigest,
-    startup_agreement: startup,
-    ...(startup === "psx-observed-import-v1"
+  const profile = createAnalysisProfile(
+    selectedIdentity,
+    compatible === undefined
       ? {
-          psx_operation_scope: "inventory-observations-only-v1",
-          load_image_evidence:
-            "unsupported-with-observations-no-source-backed-coverage-v1",
+          target_format: "ps-x-exe",
+          asset_inventory_digest: assetDigest,
+          startup_agreement: startup,
+          ...(startup === "psx-observed-import-v1"
+            ? {
+                psx_operation_scope: "inventory-observations-only-v1",
+                load_image_evidence:
+                  "unsupported-with-observations-no-source-backed-coverage-v1",
+              }
+            : {
+                psx_operation_scope:
+                  "inventory-load-image-and-static-functions-v1",
+                instruction_flow_evidence:
+                  "decoded-return-before-jump-and-delay-slots-v2",
+                psx_import: {
+                  loader: { code_source_sha256: "f".repeat(64) },
+                  supplied_loader_options: {},
+                },
+                psx_source_provenance: provenance,
+                psx_preparation_transaction: transaction,
+                load_image_evidence: "independent-psx-adapted-payload-entry-v2",
+              }),
+          ...semantics,
         }
       : {
-          psx_operation_scope: "inventory-and-load-image-v1",
-          psx_source_provenance: provenance,
-          psx_preparation_transaction: transaction,
-          load_image_evidence: "independent-psx-adapted-payload-entry-v2",
-        }),
-  });
+          target_format: "elf",
+          capture_compatibility: "optional-native-instruction-fields",
+        },
+  );
   const provider: AnalysisProvider = {
-    identity: () => identity,
+    identity: () => selectedIdentity,
     capabilities: () => [
       {
-        provider: identity,
-        operation: "list_strings",
+        provider: selectedIdentity,
+        operation: compatible?.operation ?? "list_strings",
         available: true,
         reason: null,
         limitations: [],
@@ -181,8 +212,10 @@ const recording = (
         if (operation !== "health") calls += 1;
         return ok(
           createAnalysisExecution(
-            [{ address: "0x80010000", value: "synthetic inventory" }],
-            identity,
+            compatible?.result ?? [
+              { address: "0x80010000", value: "synthetic inventory" },
+            ],
+            selectedIdentity,
             { analysisProfile: profile },
           ),
         );
@@ -230,26 +263,17 @@ describe("PSX snapshot identity with a recording provider", () => {
     expect(same.calls()).toBe(0);
     await same.session.close();
     for (const changed of [
-      { recording: recording("c".repeat(64)), target },
+      { recording: recording({ assetDigest: "c".repeat(64) }), target },
       {
-        recording: recording("b".repeat(64), "psx-observed-import-v1"),
+        recording: recording({ startup: "psx-observed-import-v1" }),
         target,
       },
       {
-        recording: recording(
-          "b".repeat(64),
-          "psx-observed-import-and-provenance-v3",
-          "rea-psx-filebytes-rebind-v1",
-        ),
+        recording: recording({ provenance: "rea-psx-filebytes-rebind-v1" }),
         target,
       },
       {
-        recording: recording(
-          "b".repeat(64),
-          "psx-observed-import-and-provenance-v3",
-          "rea-psx-filebytes-rebind-v2",
-          "nested-script-transaction",
-        ),
+        recording: recording({ transaction: "nested-script-transaction" }),
         target,
       },
       { recording: recording(), target: { ...target, sha256: "d".repeat(64) } },
@@ -258,13 +282,19 @@ describe("PSX snapshot identity with a recording provider", () => {
         snapshot.value,
       );
       if (!accepted.ok) throw accepted.error;
+      const previousState = changed.recording.session.status();
+      const previousEvidence = changed.recording.session.exportEvidenceBundle();
       expect(
         await changed.recording.session.previewTarget(changed.target),
       ).toMatchObject({ ok: false, error: { _tag: "EvidenceIntegrityError" } });
       expect(changed.recording.calls()).toBe(0);
+      expect(changed.recording.session.status()).toEqual(previousState);
+      expect(changed.recording.session.exportEvidenceBundle()).toEqual(
+        previousEvidence,
+      );
       await changed.recording.session.close();
     }
-    const legacy = recording("b".repeat(64), "psx-observed-import-v1");
+    const legacy = recording({ startup: "psx-observed-import-v1" });
     const legacyPreview = await legacy.session.previewTarget(target);
     if (!legacyPreview.ok) throw legacyPreview.error;
     const legacyOpened = await legacy.session.openResolvedTarget(
@@ -289,6 +319,113 @@ describe("PSX snapshot identity with a recording provider", () => {
     });
     expect(current.calls()).toBe(0);
     await current.session.close();
+  });
+});
+
+describe("PSX snapshot semantic rejection retains active state", () => {
+  it.each([
+    ["flow v1", { instruction_flow_evidence: "decoded-return-pcode-v1" }],
+    [
+      "PSX unavailable flow v1",
+      { instruction_flow_evidence: "unavailable-pending-psx-semantics-v1" },
+    ],
+    [
+      "loader",
+      {
+        psx_import: {
+          loader: { code_source_sha256: "e".repeat(64) },
+          supplied_loader_options: {},
+        },
+      },
+    ],
+    [
+      "options",
+      {
+        psx_import: {
+          loader: { code_source_sha256: "f".repeat(64) },
+          supplied_loader_options: { "RAM Start": "0x80000000" },
+        },
+      },
+    ],
+  ] as const)(
+    "rejects %s at preview before dispatch while preserving prior session and Evidence",
+    async (_name, semantics) => {
+      const target: BinaryTarget = {
+        ...TARGET,
+        format: "ps-x-exe",
+        architecture: "mips",
+        availableArchitectures: ["mips"],
+      };
+      const stale = recording({ semantics });
+      const oldPreview = await stale.session.previewTarget(target);
+      if (!oldPreview.ok) throw oldPreview.error;
+      const oldOpened = await stale.session.openResolvedTarget(
+        oldPreview.value,
+      );
+      if (!oldOpened.ok) throw oldOpened.error;
+      const oldResult = await stale.session.execute("list_strings", {
+        document: "synthetic PSX",
+      });
+      if (!oldResult.ok) throw oldResult.error;
+      const snapshot = stale.session.exportAnalysisSnapshot();
+      if (!snapshot.ok) throw snapshot.error;
+      await stale.session.close();
+      const current = recording();
+      try {
+        const accepted = current.session.importAnalysisSnapshot(snapshot.value);
+        if (!accepted.ok) throw accepted.error;
+        const before = current.session.status();
+        const retained = current.session.exportEvidenceBundle();
+        expect(await current.session.previewTarget(target)).toMatchObject({
+          ok: false,
+          error: { _tag: "EvidenceIntegrityError" },
+        });
+        expect(current.calls()).toBe(0);
+        expect(current.session.status()).toEqual(before);
+        expect(current.session.exportEvidenceBundle()).toEqual(retained);
+      } finally {
+        await current.session.close();
+      }
+    },
+  );
+
+  it("rejects a changed provider identity without opening or committing partial Evidence", async () => {
+    const target: BinaryTarget = {
+      ...TARGET,
+      format: "ps-x-exe",
+      architecture: "mips",
+      availableArchitectures: ["mips"],
+    };
+    const initial = recording();
+    const preview = await initial.session.previewTarget(target);
+    if (!preview.ok) throw preview.error;
+    const opened = await initial.session.openResolvedTarget(preview.value);
+    if (!opened.ok) throw opened.error;
+    const queried = await initial.session.execute("list_strings", {
+      document: "synthetic PSX",
+    });
+    if (!queried.ok) throw queried.error;
+    const snapshot = initial.session.exportAnalysisSnapshot();
+    if (!snapshot.ok) throw snapshot.error;
+    await initial.session.close();
+    const changed = recording({
+      selectedIdentity: { id: "other-provider", name: "Other", version: "1" },
+    });
+    try {
+      const imported = changed.session.importAnalysisSnapshot(snapshot.value);
+      if (!imported.ok) throw imported.error;
+      const priorState = changed.session.status();
+      const priorEvidence = changed.session.exportEvidenceBundle();
+      expect(await changed.session.previewTarget(target)).toMatchObject({
+        ok: false,
+        error: { _tag: "EvidenceIntegrityError" },
+      });
+      expect(changed.calls()).toBe(0);
+      expect(changed.session.status()).toEqual(priorState);
+      expect(changed.session.exportEvidenceBundle()).toEqual(priorEvidence);
+    } finally {
+      await changed.session.close();
+    }
   });
 });
 
@@ -401,5 +538,72 @@ describe("Ghidra snapshot cache", () => {
     ).toHaveLength(5);
     expect(session.exportAnalysisSnapshot().ok).toBe(false);
     await session.close();
+  });
+});
+
+describe("Non-Ghidra optional instruction snapshot compatibility", () => {
+  it("retains older absent delay/flow-provenance fields through session export/import and zero-query replay", async () => {
+    const operation = "inspect_native_instruction";
+    const result = {
+      address: "0x1000",
+      status: "decoded",
+      procedure: "0x1000",
+      architecture: "x86_64",
+      mode: "default",
+      bytes: "c3",
+      length: 1,
+      mnemonic: "ret",
+      raw_disassembly: "ret",
+      operands: [],
+      references: [],
+      flow: {
+        kind: "return",
+        conditional: false,
+        computed: false,
+        direct_destinations: [],
+      },
+      limitations: ["Simulated older non-Ghidra capture; no native execution."],
+    };
+    const makeSession = () =>
+      recording({
+        selectedIdentity: { id: "hopper", name: "Hopper", version: "fixture" },
+        compatible: { operation, result },
+      });
+    const parameters = { address: "0x1000", document: "fixture" };
+    const initial = makeSession();
+    let snapshot;
+    try {
+      const preview = await initial.session.previewTarget(TARGET);
+      if (!preview.ok) throw preview.error;
+      const opened = await initial.session.openResolvedTarget(preview.value);
+      if (!opened.ok) throw opened.error;
+      const queried = await initial.session.execute(operation, parameters);
+      if (!queried.ok) throw queried.error;
+      expect(queried.value.result).not.toHaveProperty("delay_slots");
+      const exported = initial.session.exportAnalysisSnapshot();
+      if (!exported.ok) throw exported.error;
+      snapshot = exported.value;
+      expect(snapshot.entries).toHaveLength(1);
+    } finally {
+      await initial.session.close();
+    }
+    const replay = makeSession();
+    try {
+      const imported = replay.session.importAnalysisSnapshot(snapshot);
+      if (!imported.ok) throw imported.error;
+      const preview = await replay.session.previewTarget(TARGET);
+      if (!preview.ok) throw preview.error;
+      const opened = await replay.session.openResolvedTarget(preview.value);
+      if (!opened.ok) throw opened.error;
+      const queried = await replay.session.execute(operation, parameters);
+      if (!queried.ok) throw queried.error;
+      expect(queried.value.result).toEqual(result);
+      expect(queried.value.result).not.toHaveProperty(
+        "flow.classification_evidence",
+      );
+      expect(replay.calls()).toBe(0);
+    } finally {
+      await replay.session.close();
+    }
   });
 });

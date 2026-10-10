@@ -745,6 +745,46 @@ public final class ReaGhidraBridge extends HeadlessScript {
         return item;
     }
 
+    private JsonObject instructionDelaySlots(Instruction instruction, List<String> limitations) throws Exception {
+        JsonObject result = new JsonObject();
+        if (instruction == null) {
+            for (String key : List.of("is_in_delay_slot", "depth", "addresses")) result.add(key, JsonNull.INSTANCE);
+            return result;
+        }
+        result.addProperty("is_in_delay_slot", instruction.isInDelaySlot());
+        int depth = instruction.getDelaySlotDepth();
+        if (depth < 0) {
+            result.add("depth", JsonNull.INSTANCE);
+            result.add("addresses", JsonNull.INSTANCE);
+            limitations.add("Ghidra Listing reported a negative delay-slot depth; owned depth and slot addresses remain unknown.");
+            return result;
+        }
+        result.addProperty("depth", depth);
+        JsonArray addresses = new JsonArray();
+        Instruction previous = instruction;
+        for (int index = 0; index < depth; index++) {
+            monitor.checkCancelled();
+            Address next;
+            try {
+                next = previous.getAddress().addNoWrap(previous.getLength());
+            } catch (ghidra.program.model.address.AddressOverflowException overflow) {
+                result.add("addresses", JsonNull.INSTANCE);
+                limitations.add("Delay-slot coverage is unknown: address arithmetic overflowed after " + canonicalAddress(previous.getAddress()) + ".");
+                return result;
+            }
+            Instruction slot = currentProgram.getListing().getInstructionAt(next);
+            if (slot == null || !slot.isInDelaySlot() || slot.getLength() <= 0) {
+                result.add("addresses", JsonNull.INSTANCE);
+                limitations.add("Delay-slot coverage is unknown at " + canonicalAddress(next) + ": " + (slot == null ? "no exact Listing instruction" : !slot.isInDelaySlot() ? "Listing instruction is not flagged as a delay slot" : "Listing instruction has no positive length") + ". Observed owned depth is retained.");
+                return result;
+            }
+            addresses.add(canonicalAddress(next));
+            previous = slot;
+        }
+        result.add("addresses", addresses);
+        return result;
+    }
+
     private JsonObject inspectNativeInstruction(JsonObject params) throws Exception {
         requireKeys(params, Set.of("document", "address"));
         requireDocument(params);
@@ -788,7 +828,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
                 returnEvidence.addProperty("value", operation.getMnemonic());
                 flowEvidence.add(returnEvidence);
             }
-            flow.addProperty("kind", type.isCall() ? "call" : type.isJump() ? "jump" : decodedReturn ? "return" : type.isTerminal() ? "terminal" : "fallthrough");
+            flow.addProperty("kind", type.isCall() ? "call" : decodedReturn ? "return" : type.isJump() ? "jump" : type.isTerminal() ? "terminal" : "fallthrough");
             flow.addProperty("conditional", type.isConditional());
             flow.addProperty("computed", type.isComputed());
             if (!type.isComputed()) for (Address target : instruction.getFlows()) destinations.add(canonicalAddress(target));
@@ -829,6 +869,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         result.add("flow", flow);
         result.add("references", references);
         List<String> limitations = new ArrayList<>(List.of("Operand components are Ghidra Listing decoder tokens; effective memory base/index/displacement roles and per-instruction context mode are unavailable. The mode field is the program language variant."));
+        result.add("delay_slots", instructionDelaySlots(instruction, limitations));
         if (flow.get("kind").getAsString().equals("terminal")) limitations.add("No RETURN operation was observed in the provider's instruction p-code; terminal classification remains generic.");
         result.add("limitations", GSON.toJsonTree(limitations));
         return result;

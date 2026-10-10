@@ -15,6 +15,70 @@ import {
   ghidraReferenceEdge,
 } from "../domain/ghidraValues.fixture.js";
 
+describe("Ghidra delay-slot result boundary", () => {
+  const instruction = () => ({
+    address: "0x80010008",
+    status: "decoded",
+    procedure: "0x80010000",
+    architecture: "PSX:LE:32:default",
+    mode: "default",
+    bytes: "2040000c",
+    length: 4,
+    mnemonic: "jal",
+    raw_disassembly: "jal 0x80010080",
+    operands: [],
+    flow: {
+      kind: "call",
+      conditional: false,
+      computed: false,
+      direct_destinations: ["0x80010080"],
+    },
+    references: [],
+    limitations: [],
+  });
+  it("admits omitted older evidence and preserves measured and unknown slot coverage", () => {
+    expect(
+      parseGhidraFunctionResult("inspect_native_instruction", instruction()),
+    ).toMatchObject({ ok: true });
+    for (const slots of [
+      { is_in_delay_slot: false, depth: 1, addresses: ["0x8001000c"] },
+      { is_in_delay_slot: false, depth: 1, addresses: null },
+      { is_in_delay_slot: true, depth: 0, addresses: [] },
+    ]) {
+      const parsed = parseGhidraFunctionResult("inspect_native_instruction", {
+        ...instruction(),
+        delay_slots: slots,
+      });
+      if (!parsed.ok) throw parsed.error;
+      expect(parsed.value).toMatchObject({ delay_slots: slots });
+    }
+  });
+  it.each(["8001000c", "0X8001000C", "0x8001000C"])(
+    "rejects noncanonical slot address %s before Evidence creation",
+    (address) => {
+      expect(
+        parseGhidraFunctionResult("inspect_native_instruction", {
+          ...instruction(),
+          delay_slots: {
+            is_in_delay_slot: false,
+            depth: 1,
+            addresses: [address],
+          },
+        }),
+      ).toMatchObject({ ok: false, error: { _tag: "AnalysisOutputError" } });
+    },
+  );
+  it("rejects a partial or duplicate list as complete observed coverage", () => {
+    for (const addresses of [["0x8001000c"], ["0x8001000c", "0x8001000c"]])
+      expect(
+        parseGhidraFunctionResult("inspect_native_instruction", {
+          ...instruction(),
+          delay_slots: { is_in_delay_slot: false, depth: 2, addresses },
+        }),
+      ).toMatchObject({ ok: false, error: { _tag: "AnalysisOutputError" } });
+  });
+});
+
 describe("Ghidra function-analysis result values", () => {
   it.each(["reference_kinds_available", "unresolved_calls"])(
     "rejects omitted %s instead of inventing complete reference observations",

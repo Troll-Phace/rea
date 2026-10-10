@@ -8,8 +8,16 @@ binaries and Ghidra projects are never committed.
   direct calls, a targetless callback call, two referenced strings, and a
   multi-block branch.
 - `entry-aliases.c` preserves secondary imported entry labels, a bare-hex
-  alias, and an interior label. The native CLI/MCP lane verifies entry selection,
-  annotation, interior-label rejection, and unchanged source bytes.
+  alias, and a local interior label after an emitted `nop`. On Darwin, only this
+  auxiliary fixture is compiled as an AArch64 ELF relocatable object with
+  `cc --target=aarch64-linux-gnu -c -O0 -g -fno-inline`; it needs no target linker
+  or libraries. Independent symbol/relocation proof and real CLI/MCP checks
+  verify imported entry selection, interior-name rejection, explicit-address
+  containment, referenced/unreferenced xrefs, annotation and unchanged bytes.
+  The enclosing host debug/stripped/instruction/return controls remain Mach-O.
+  This auxiliary ELF result does not verify Mach-O named non-entry rejection
+  or Linux native-host behavior. Non-Darwin compilation retains its existing
+  native compiler behavior and requires its own measured verification.
 - `cross-format.c` is freestanding so the verifier can produce AArch64 ELF,
   x86-64 PE, and x86-64 Mach-O targets from the same semantics. It preserves an
   exported entry, direct and indirect calls, a volatile string reference, and a
@@ -85,8 +93,10 @@ provider-boundary before/after observations. Public stdio MCP and CLI sessions
 are distinct imports; their identical fixture/profile identities are checked,
 and the provider-boundary health record is not attributed to a public session.
 The public load-image result must verify source-backed adapted payload coverage
-while retaining the original empty loader provenance. Function instructions remain gated. Four generated header-policy
-negatives must fail before allocating a provider runtime.
+while retaining the original empty loader provenance. It now checks the PSX
+annotation refusal; static function reads are admitted under the Phase 4
+profile. Four generated header-policy negatives must fail before allocating a
+provider runtime.
 
 Reports contain explicitly selected provider/JDK coordinates and selected
 bounded startup report/marker lines;
@@ -94,9 +104,9 @@ transport credentials are redacted and ambient environment is not serialized.
 The verifier requires unchanged source bytes, awaited owned-root cleanup and a
 verified empty process lineage. Failed runs retain their diagnostic report;
 cleanup failure retains ownership of the affected runtime. This lane establishes
-production import on its measured host only. Linux, MIPS instruction semantics,
-original-loader provenance, patched AC3, and installed-package/fresh-client
-operation remain separate gates.
+production import on its measured host only; the separate Phase 4 operation
+lane below measures MIPS instruction facts. Linux, original-loader provenance,
+patched AC3, and installed-package/fresh-client operation remain separate gates.
 
 `scripts/verify-real-ghidra-psx-load-image.mjs --stage feasibility` checks
 Phase 3 production preparation through the unshipped
@@ -161,5 +171,44 @@ agreement and uninitialized fill contents retain their measured unknowns.
 source/profile/report identities, earlier failed attempts, current source-runtime
 DOS/COM proofs and separate package checks. COM's native proof explicitly uses
 the source runtime, not a packaged artifact. Distribution checks do not establish
-real installed PSX/fresh-client behavior. Linux, patched game inputs, Phase 4
-instruction/delay-slot semantics and runtime correctness remain unverified.
+real installed PSX/fresh-client behavior. Instruction/delay-slot semantics were
+unverified at that Phase 3 checkpoint. The later Phase 4 direct-production G1/G2
+runs passed on macOS, as recorded below and in Phase 4 results. Linux, patched
+game inputs and runtime correctness remain unverified.
+
+The original `instruction-flow` variant adds the Phase 4 six-transfer oracle:
+direct and unresolved computed calls, conditional/unconditional jumps, two
+decoded returns, non-NOP slots, two observed function-tail slots and the
+`REA-PSX-P4` string/reference candidate. Previous three variants retain their
+exact bytes. Run the bounded real macOS direct production-provider lane after
+building:
+
+```bash
+GHIDRA_INSTALL_DIR=/absolute/ghidra JAVA_HOME=/absolute/temurin-25 \
+  node scripts/verify-real-ghidra-psx-operations.mjs --stage decoder
+GHIDRA_INSTALL_DIR=/absolute/ghidra JAVA_HOME=/absolute/temurin-25 \
+  node scripts/verify-real-ghidra-psx-operations.mjs
+```
+
+The decoder stage requires every saved word, observed slot/flow fact, original
+function-tail ownership and real defined string/data reference. The default
+stage adds both decompilations, assembly/instruction/dossier identities and
+incoming/outgoing calls/references, unresolved call coverage, interior selector
+behavior and PSX mutation/data-type refusals. The reusable assertion helper has
+an explicit independent oracle and accepts a call function; public callers are
+future coverage, not a claim made by this direct lane.
+
+Both stages use the canonical provider profile and normal auto-analysis. A
+first contradiction fails the gate, preserves available raw evidence and still
+attempts independent postchecks/capture/close. No mnemonic or raw-loader
+fallback, synthetic production reference, or relaxed native expectation is
+permitted. Optional `REA_PSX_OPERATION_PROOF_CAPTURE_DIR` must be absolute and
+ignored; the default is `docs/psx-local/phase-4-operation-runs/`. Complete exact
+owned cleanup and verified empty process lineage are required. Reports include
+only selected environment coordinates and credential-redacted provider
+observations, never ambient environment or session credential files.
+
+See [Phase 4 results](../../../docs/active/phase-4-results.md) for current proof
+and gate status. Native direct evidence does not establish public CLI/stdio MCP
+journeys, Linux, game acceptance, runtime correctness or installed-package and
+fresh-client discovery.

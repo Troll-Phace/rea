@@ -210,12 +210,25 @@ export const windowsP0Capabilities = (): readonly CapabilityDescriptor[] => {
   );
 };
 
-/** Static PSX image evidence is admitted; function semantics await Phase 4. */
-export const psxFunctionUnavailableReason =
-  "PSX function/instruction analysis is deferred pending Phase 4 MIPS semantics.";
+/** Target-specific observational PSX surface; provider-wide mutation support is separate. */
+export const GHIDRA_PSX_READ_OPERATIONS: ReadonlySet<string> = new Set([
+  "health",
+  ...GHIDRA_INVENTORY_OPERATIONS,
+  "inspect_native_instruction",
+  "resolve_native_call_targets",
+  "analyze_function",
+  "procedure_assembly",
+  "procedure_callees",
+  "procedure_callers",
+  "procedure_info",
+  "procedure_pseudo_code",
+  "read_function_instructions",
+  "procedure_references",
+  "xrefs",
+]);
 export const psxImportLimitations = Object.freeze([
   "PSX support uses loader defaults within KSEG0 2MB RAM. Load-image verification covers independently checked REA-adapted static payload and declared entry evidence; original-loader source lineage and runtime correctness remain unknown.",
   "Original label history is retained as evidence. The adapted Program may contain newly generated label-history events from REA restoration; its original journal was not restored in place.",
   "GP/SP/fill runtime state is not established by startup agreement; absent context and uninitialized memory remain unknown.",
-  `Provider-wide capabilities do not imply PSX execution support. Unavailable target operations: ${GHIDRA_FUNCTION_OPERATIONS.join(", ")}. ${psxFunctionUnavailableReason}`,
+  "PSX admits static inventory, load-image, instruction, function, decompiler and reference queries. Static observations do not establish runtime paths or complete computed-call resolution. Provider-wide capabilities do not imply target-specific authority; PSX annotation mutation and data-type inspection remain outside the observational scope.",
 ]);

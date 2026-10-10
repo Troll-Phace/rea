@@ -102,7 +102,9 @@ describe("canonical PSX analysis identity", () => {
         expected_ram_base: "0x80000000",
         expected_ram_size: 2097152,
       },
-      psx_operation_scope: "inventory-and-load-image-v1",
+      psx_operation_scope: "inventory-load-image-and-static-functions-v1",
+      instruction_flow_evidence:
+        "decoded-return-before-jump-and-delay-slots-v2",
       psx_source_provenance: "rea-psx-filebytes-rebind-v2",
       psx_preparation_transaction: "exclusive-top-level-v1",
       startup_agreement: "psx-observed-import-and-provenance-v3",
@@ -166,6 +168,9 @@ describe("PSX semantic profile admission", () => {
     if (!config.ok) throw config.error;
     for (const [field, value] of [
       ["psx_operation_scope", "inventory-observations-only-v1"],
+      ["psx_operation_scope", "inventory-and-load-image-v1"],
+      ["instruction_flow_evidence", "unavailable-pending-psx-semantics-v1"],
+      ["instruction_flow_evidence", "decoded-return-pcode-v1"],
       ["psx_source_provenance", "rea-psx-filebytes-rebind-v1"],
       ["psx_preparation_transaction", "nested-script-transaction"],
       ["startup_agreement", "psx-observed-import-v1"],
@@ -247,6 +252,18 @@ describe("PSX profile policy and format isolation", () => {
         "psx_import",
       );
       expect(result.ok).toBe(true);
+      if (!result.ok || result.value.profile === null)
+        throw new Error("profile missing");
+      const profile = result.value.profile;
+      expect(profile.parameters.instruction_flow_evidence).toBe(
+        "decoded-return-before-jump-and-delay-slots-v2",
+      );
+      expect(profile.digest).not.toBe(
+        createAnalysisProfile(profile.provider, {
+          ...profile.parameters,
+          instruction_flow_evidence: "decoded-return-pcode-v1",
+        }).digest,
+      );
     }
     expect(inspect).not.toHaveBeenCalled();
   });
