@@ -52,7 +52,7 @@ import java.util.UUID;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.w3c.dom.Element;
 
-/** PSX-only observation boundary. It never writes Program state or target bytes. */
+/** PSX import observation and disposable-database provenance preparation. Source bytes remain immutable. */
 public final class ReaGhidraPsxImport {
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
     private static final String POLICY = "psx-kseg0-2m-defaults-v1";
@@ -76,33 +76,66 @@ public final class ReaGhidraPsxImport {
     private ReaGhidraPsxImport() {}
 
     public static String prepare(Path descriptorPath, Program program, TaskMonitor monitor) throws Exception {
+        ReaGhidraPsxProvenance.requireNoTransaction(program, "pre-entry-ownership");
         JsonObject descriptor = readDescriptor(descriptorPath);
         JsonObject commitment = validateCommitment(descriptor);
         Path recordPath = beforePath(descriptorPath);
         if (Files.exists(recordPath, LinkOption.NOFOLLOW_LINKS)) {
             throw invalid("PSX before record already exists");
         }
-        JsonObject before = observe("before-analysis", descriptor, commitment, program, monitor);
-        byte[] bytes = (GSON.toJson(before) + "\n").getBytes(StandardCharsets.UTF_8);
-        Path pending = recordPath.resolveSibling("psx-import-before.json.pending");
+        // Validate original import identity before the only authorized Program mutation.
+        JsonObject before = observe("before-analysis", descriptor, commitment, program, monitor, null);
+        JsonObject provenance = ReaGhidraPsxProvenance.adapt(program, descriptorPath, descriptor, commitment.getAsJsonObject("declarations"), monitor);
+        before.add("provenance", provenance);
+        validateObservation(before, "before-analysis", descriptor, commitment);
+        ReaGhidraPsxProvenance.requireNoTransaction(program, "before-record-publication");
+        String recordHash = publishRecord(recordPath, before);
+        return "REA_PSX_IMPORT_BEFORE_COMPLETE " + text(descriptor, "run_id") + " " + recordHash;
+    }
+
+    private static String publishRecord(Path recordPath, JsonObject record) throws Exception {
+        if (Files.exists(recordPath, LinkOption.NOFOLLOW_LINKS)) throw invalid("Owned PSX evidence record already exists");
+        byte[] bytes = (GSON.toJson(record) + "\n").getBytes(StandardCharsets.UTF_8);
+        Path pending = recordPath.resolveSibling(recordPath.getFileName() + ".pending");
         boolean pendingOwned = false;
         try {
-            // CREATE_NEW and private permissions apply before any record bytes exist.
             Files.createFile(pending, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
             pendingOwned = true;
             Files.write(pending, bytes, StandardOpenOption.WRITE);
-            // A non-atomic filesystem is incompatible with this publication contract.
+            if (Files.exists(recordPath, LinkOption.NOFOLLOW_LINKS)) throw invalid("Owned PSX evidence record appeared during publication");
             Files.move(pending, recordPath, StandardCopyOption.ATOMIC_MOVE);
             pendingOwned = false;
-        }
-        catch (Exception primary) {
+        } catch (Exception primary) {
             if (pendingOwned) {
                 try { Files.deleteIfExists(pending); }
                 catch (Exception cleanup) { primary.addSuppressed(cleanup); }
             }
             throw primary;
         }
-        return "REA_PSX_IMPORT_BEFORE_COMPLETE " + text(descriptor, "run_id") + " " + hashBytes(bytes);
+        return hashBytes(bytes);
+    }
+
+    public record OriginalRecord(JsonObject value, String sha256, BasicFileAttributes attributes) {}
+
+    public static Path originalRecordPath(Path descriptor) throws IOException {
+        return beforePath(descriptor).resolveSibling("psx-provenance-original.json");
+    }
+
+    public static String publishOriginalRecord(Path descriptor, JsonObject record) throws Exception {
+        return publishRecord(originalRecordPath(descriptor), record);
+    }
+
+    public static OriginalRecord readOriginalRecord(Path descriptor, int expectedBytes) throws Exception {
+        Path path = originalRecordPath(descriptor); requireRegular(path);
+        BasicFileAttributes initial = attributes(path); byte[] bytes;
+        if (expectedBytes < 1 || initial.size() != expectedBytes) throw invalid("Original evidence size differs from its known produced record");
+        try (var input = Files.newInputStream(path, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+            bytes = input.readNBytes(expectedBytes);
+            if (bytes.length != expectedBytes || input.read() != -1) throw invalid("Original evidence read differs from its known produced length");
+        }
+        stable(initial, attributes(path), path);
+        JsonObject value = parseJson(new String(bytes, StandardCharsets.UTF_8)).getAsJsonObject();
+        return new OriginalRecord(value, hashBytes(bytes), initial);
     }
 
     public static JsonObject agreement(Path descriptorPath, JsonObject descriptor,
@@ -114,15 +147,19 @@ public final class ReaGhidraPsxImport {
         byte[] bytes = Files.readAllBytes(recordPath);
         stable(initial, attributes(recordPath), recordPath);
         JsonObject before = object(parseJson(new String(bytes, StandardCharsets.UTF_8)),
-            Set.of("schema_version", "stage", "commitment", "observed"));
+            Set.of("schema_version", "stage", "commitment", "observed", "provenance"));
         validateObservation(before, "before-analysis", descriptor, commitment);
-        JsonObject after = observe("after-analysis", descriptor, commitment, program, monitor);
+        JsonObject provenance = before.getAsJsonObject("provenance");
+        ReaGhidraPsxProvenance.validateRecord(provenance, commitment);
+        ReaGhidraPsxProvenance.validateOriginalRecord(descriptorPath, descriptor, provenance);
+        JsonObject after = observe("after-analysis", descriptor, commitment, program, monitor, provenance);
+        equal(before.get("provenance"), after.get("provenance"), "Before/after provenance record");
         JsonObject oldFacts = before.getAsJsonObject("observed"), newFacts = after.getAsJsonObject("observed");
         for (String field : List.of("ghidra_version", "source", "loader_selector", "loader_class", "advertised_defaults",
                 "selected_classes", "language_assets", "asset_inventory_version", "asset_inventory_digest")) {
             equal(oldFacts.get(field), newFacts.get(field), "Before/after " + field);
         }
-        JsonObject result = obj("schema_version", 1, "before_record_sha256", hashBytes(bytes));
+        JsonObject result = obj("schema_version", 3, "before_record_sha256", hashBytes(bytes));
         result.add("before", before);
         result.add("after", after);
         return result;
@@ -151,8 +188,9 @@ public final class ReaGhidraPsxImport {
         JsonObject expected = object(descriptor.get("psx_import"), Set.of("schema_version", "policy",
             "source_snapshot_path", "source_sha256", "declarations", "loader", "language_id", "compiler_spec_id",
             "option_mode", "supplied_loader_options", "expected_ram_base", "expected_ram_size",
-            "asset_inventory_version", "asset_inventory_digest"));
-        equal(number(expected, "schema_version"), 1L, "commitment schema version");
+            "asset_inventory_version", "asset_inventory_digest", "source_provenance"));
+        equal(text(expected, "source_provenance"), ReaGhidraPsxProvenance.METHOD, "source provenance commitment");
+        equal(number(expected, "schema_version"), 3L, "commitment schema version");
         equal(text(expected, "policy"), POLICY, "import policy");
         equal(text(expected, "language_id"), LANGUAGE, "language commitment");
         equal(text(expected, "compiler_spec_id"), "default", "compiler commitment");
@@ -178,7 +216,7 @@ public final class ReaGhidraPsxImport {
     }
 
     private static JsonObject observe(String stage, JsonObject descriptor, JsonObject expected,
-            Program program, TaskMonitor monitor) throws Exception {
+            Program program, TaskMonitor monitor, JsonObject provenance) throws Exception {
         monitor.checkCancelled();
         Path snapshot = Path.of(text(expected, "source_snapshot_path"));
         requireRegular(snapshot);
@@ -263,10 +301,13 @@ public final class ReaGhidraPsxImport {
         classes.values().forEach(selectedClasses::add);
         observed.add("selected_classes", selectedClasses);
         observed.add("language_assets", languageAssets(program, inventory, monitor));
-        JsonObject result = obj("schema_version", 1, "stage", stage);
+        JsonObject result = obj("schema_version", 3, "stage", stage);
         result.add("commitment", correlation(descriptor));
         result.add("observed", observed);
-        validateObservation(result, stage, descriptor, expected);
+        if (provenance != null) {
+            result.add("provenance", provenance.deepCopy());
+            validateObservation(result, stage, descriptor, expected);
+        }
         return result;
     }
 
@@ -441,6 +482,17 @@ public final class ReaGhidraPsxImport {
         else throw invalid("Nonregular resource prevents complete inventory: " + path);
     }
 
+    public static JsonObject verifiedDeclarations(JsonObject descriptor, TaskMonitor monitor) throws Exception {
+        JsonObject commitment = validateCommitment(descriptor);
+        Path snapshot = Path.of(text(commitment, "source_snapshot_path"));
+        requireRegular(snapshot); BasicFileAttributes initial = attributes(snapshot);
+        JsonObject declarations = readDeclarations(snapshot, initial.size());
+        equal(declarations, commitment.get("declarations"), "fresh snapshot declarations");
+        equal(hashFile(snapshot, monitor), text(commitment, "source_sha256"), "fresh snapshot digest");
+        stable(initial, attributes(snapshot), snapshot);
+        return declarations;
+    }
+
     private static JsonObject readDeclarations(Path snapshot, long size) throws Exception {
         if (size < 2048 || size > MAX_SAFE_INTEGER) throw invalid("PS-X EXE file length is invalid");
         ByteBuffer bytes = ByteBuffer.allocate(2048).order(ByteOrder.LITTLE_ENDIAN);
@@ -488,8 +540,9 @@ public final class ReaGhidraPsxImport {
     private static boolean bank(long start, long bytes) { return start >= RAM_BASE && bytes > 0 && start + bytes <= RAM_BASE + RAM_SIZE; }
 
     private static void validateObservation(JsonObject record, String stage, JsonObject descriptor, JsonObject expected) throws Exception {
-        object(record, Set.of("schema_version", "stage", "commitment", "observed"));
-        equal(number(record, "schema_version"), 1L, "observation schema version");
+        object(record, Set.of("schema_version", "stage", "commitment", "observed", "provenance"));
+        equal(number(record, "schema_version"), 3L, "observation schema version");
+        ReaGhidraPsxProvenance.validateRecord(record.getAsJsonObject("provenance"), expected);
         equal(text(record, "stage"), stage, "observation stage");
         equal(object(record.get("commitment"), Set.of("run_id", "profile_digest", "source_sha256")), correlation(descriptor), "observation correlation");
         JsonObject observed = object(record.get("observed"), OBSERVED_KEYS);
@@ -572,7 +625,7 @@ public final class ReaGhidraPsxImport {
         return parent.resolve("psx-import-before.json");
     }
 
-    private static BasicFileAttributes attributes(Path path) throws IOException { return Files.readAttributes(path, BasicFileAttributes.class); }
+    private static BasicFileAttributes attributes(Path path) throws IOException { return Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS); }
 
     private static void requireRegular(Path path) throws IOException {
         if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) throw invalid("Expected an owned regular file: " + path);

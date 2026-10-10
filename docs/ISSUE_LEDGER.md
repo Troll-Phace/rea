@@ -1,18 +1,18 @@
 # PSX issue ledger
 
 Canonical offline ledger. Batch psx-support-2026-10. Next ID: PSX-009.
-No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR #1; PSX-001 is closed. Phase 2 is complete through approved and verified [PR #2](https://github.com/Troll-Phace/rea/pull/2); PSX-002 is closed; PSX-006 is closed by the verified default-only production policy. PSX-007 remains a Phase 3 blocker; Phases 3–5 remain planned and unauthorized.
+No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR #1; PSX-001 is closed. Phase 2 is complete through approved and verified [PR #2](https://github.com/Troll-Phace/rea/pull/2); PSX-002 is closed; PSX-006 is closed by the verified default-only production policy. Phase 3 technical acceptance and bounded review passed; PR delivery and approved merge remain pending. PSX-007 is closed by measured adapted provenance and mutation evidence; Phases 4–5 remain planned and unauthorized.
 
-| ID      | Type    | Severity | Status | Phase   | Title                                               |
-| ------- | ------- | -------- | ------ | ------- | --------------------------------------------------- |
-| PSX-001 | feature | high     | closed | 1       | Format and loader contract                          |
-| PSX-002 | feature | high     | closed | 2       | Deterministic Ghidra PSX import                     |
-| PSX-003 | feature | high     | open   | 3       | Independent memory and entry evidence               |
-| PSX-004 | feature | medium   | open   | 4       | MIPS queries and public contract parity             |
-| PSX-005 | test    | high     | open   | 5       | Real-provider, package and local acceptance         |
-| PSX-006 | bug     | high     | closed | 2       | Installed PSX RAM option value-class mismatch       |
-| PSX-007 | feature | high     | open   | 3       | Installed PSX loader lacks original file provenance |
-| PSX-008 | test    | low      | open   | Backlog | PSX startup diagnostic truncation coverage gap      |
+| ID      | Type    | Severity | Status      | Phase   | Title                                               |
+| ------- | ------- | -------- | ----------- | ------- | --------------------------------------------------- |
+| PSX-001 | feature | high     | closed      | 1       | Format and loader contract                          |
+| PSX-002 | feature | high     | closed      | 2       | Deterministic Ghidra PSX import                     |
+| PSX-003 | feature | high     | in-progress | 3       | Independent memory and entry evidence               |
+| PSX-004 | feature | medium   | open        | 4       | MIPS queries and public contract parity             |
+| PSX-005 | test    | high     | open        | 5       | Real-provider, package and local acceptance         |
+| PSX-006 | bug     | high     | closed      | 2       | Installed PSX RAM option value-class mismatch       |
+| PSX-007 | feature | high     | closed      | 3       | Installed PSX loader lacks original file provenance |
+| PSX-008 | test    | low      | open        | Backlog | PSX startup diagnostic truncation coverage gap      |
 
 ## PSX-001 — Format and loader contract
 
@@ -36,13 +36,14 @@ No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR 
 
 ## PSX-003 — Independent memory and entry evidence
 
-- Status: open; type: feature; severity: high; phase: 3.
+- Status: in-progress; type: feature; severity: high; phase: 3.
 - Owner: orchestrator, with task delegation per PLAN.md.
-- Evidence: planned later-phase work; Phase 2 now admits the verified default-only PSX import subset, while source-backed attestation and function/instruction semantics remain unavailable. No implementation of this later phase is claimed.
-- Dependencies: Phase 2 accepted; PSX-007 measured absence of FileBytes must be resolved by a planned producer-boundary provenance contract before verified source-backed attestation.
+- Evidence: detailed [Phase 3 contract](active/phase-3-plan.md) saved by Astra/low on 2026-10-10 and reviewed by the orchestrator against `c498013fee5a61d4900a5edb7a9743f2a42b5c75`. It defines the PSX result/status contract, independent source/offset/coverage/entry checks, REA-owned producer provenance, semantic mutations and scoped real synthetic acceptance. The user authorized execution on 2026-10-10; implementation is in progress on `codex/psx-phase-3`, with the feasibility, full public and regression lanes now passed; technical acceptance, package checks and bounded review passed. PR delivery and approved merge remain pending.
+- Dependencies: Phase 2 accepted; PSX-007 adapted producer-provenance criteria are now closed. Original-loader lineage remains absent.
 - Done-criteria: Payload coverage, source offsets, entry/context and contradictions independently checked; mutation tests and real evidence pass; Phase 3 delivery satisfied.
-- Tasks and exact verification contract: corresponding phase in PLAN.md.
-- Closure evidence/date/commit/PR: none.
+- Tasks and exact verification contract: [shared Phase 3 plan](active/phase-3-plan.md), P3-00/P3-11/P3-12/P3-13/P3-21/P3-22/P3-90; overview in PLAN.md. Early producer preservation/rollback feasibility must pass before broader integration. Instruction/function semantics remain Phase 4.
+- Technical acceptance: [Phase 3 results](active/phase-3-results.md) record 328 integrated source tests, 130 focused boundary tests (one Windows-only skip), required real feasibility/public/replay and PSX/DOS/COM regressions, current package integrity and bounded close review. No unresolved findings remain; PSX-007 is closed.
+- Closure evidence/date/commit/PR: technical acceptance passed 2026-10-10; record remains in progress because concrete PR creation and approved merge delivery are pending.
 
 ## PSX-006 — Installed PSX RAM option value-class mismatch
 
@@ -55,19 +56,24 @@ No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR 
 
 ## PSX-007 — Installed PSX loader lacks original file provenance
 
-- Status: open; type: feature; severity: high; phase: 3; owner: orchestrator/provider implementor.
+- Status: closed; type: feature; severity: high; phase: 3; owner: orchestrator/provider implementor.
 - Evidence: actual automatic baseline observation in `docs/psx-local/loader-contract-runs/run-2iooT6/report.json` records an empty FileBytes collection while mapped payload hash matches independently generated source bytes. Same installed loader identity as PSX-006. Source before/after digests match; workspace removal and empty verifier lineage were verified.
 - Final confirmation: all seven cases in `run-8keqyf/report.json` have empty before/after FileBytes collections; see the versioned results/report digest above.
 - Impact: byte equality establishes measured mapping content, but cannot establish original file offsets/source-backed mapping coverage for promised independent attestation.
-- Disposition: deferred from Phase 1 measurement; blocks PSX-003 verified source-backed coverage. Separate from the already planned attestation umbrella because this is a demonstrated producer capability gap.
+- Disposition: the Phase 1 measured gap blocked PSX-003 verified source-backed coverage until the Phase 3 adaptation criteria passed. The reviewed and now authorized [Phase 3 contract](active/phase-3-plan.md), particularly P3-12/P3-22, specifies a transactional FileBytes-backed payload rebind in REA's disposable Program, retaining original observations and verifying exact operational-state preservation with the disclosed journal recreation. This establishes REA-adapted lineage rather than original-loader lineage. The early real feasibility and full public/source-offset/digest mutation lanes have now passed. Final evidence review passed; original-loader lineage remains absent. Separate from the already planned attestation umbrella because this is a demonstrated producer capability gap.
 - Done-criteria: an explicit producer-boundary adaptation/evidence contract is planned and verified using actual source provenance, mapped coverage and independent source-offset/digest mutations. Missing provenance must remain unsupported/unknown, and matching bytes alone must never satisfy verified attestation.
-- Closure evidence/date/commit/PR: none.
+- Historical initial Phase 3 gate evidence: actual generated baseline in `docs/psx-local/phase-3-load-image-runs/run-LW5dxy/report.json` (SHA-256 `b09e84b61b56d6f656555b11024050fe40e96932e33a0e1bade4c78781505775`) produced unavailable before mutation: “Affected label history cannot be restored exactly through public APIs.” Original FileBytes remain empty; no rebound ranges; before/after state hashes agree, source/snapshot hashes unchanged, owned workspace removed and lineage verified empty. Installed SymbolManager deletion removes history while public SymbolTable offers no restore API. This blocks the initial exact-preservation producer contract; a bounded Astra replan is in progress, with no silent metadata omission or public acceptance claim.
+- Historical reviewed R1 correction: [P3-R1](active/phase-3-plan.md) retains the complete original journal as authenticated evidence, reports the adapted journal and exact duplicate-preserving differences, and requires exact operational-state equality. Only restoration-generated ADD events at payload addresses may differ on success. Rollback/unavailable still require complete state equality. Seven revised real cases are pending; this record and dependent PSX-003 remain blocked at that gate. Original failed reports are retained; no new provenance or acceptance is claimed.
+- Historical R1 gate outcome: report `docs/psx-local/phase-3-load-image-runs/run-dd9PJz/report.json`, SHA-256 `dc6602b3ed6d70b5d5026c944d5f6487c09b314e6e5ade8b562e5e03f7ff0d73`, records four actual applied cases plus one unchanged unavailable case. Forced cancellation reports rollback comparison failure; no raw rollback probe evidence survived, and tamper remains unrun. Sources/snapshots, 2170 assets and relevant code/bundle postchecks are unchanged; owned workspace removed with verified empty lineage and no cleanup errors. Full rollback remains a blocker, not resolved by positive adaptation or cleanup. A bounded transaction-ownership/failure-capture replan is pending reviewed readback.
+- Historical reviewed R2 correction: public script ownership APIs provide a sole-transaction window before analysis. The wrapper releases only its own implicit transaction; direct helper calls refuse any active transaction, and actual final closure precedes full commit/rollback recapture. Nine fresh real cases, including active-owner refusal and the unchanged production preScript entrypoint, are required. Failure evidence is captured before cleanup without changing old reports. Producer implementation/verification is pending; PSX-007 and dependent PSX-003 remain blocked.
+- Revised feasibility checkpoint passed: all nine R2 real feasibility cases in `docs/psx-local/phase-3-load-image-runs/run-GSE38p/report.json`, SHA-256 `d1f19c48e804ee35202279c7a9d6e77acead0406087e39c894021a79b3adcdda`, were reviewed at current recorded source. Cancellation and tamper prove completed full rollback with retained observations/journals; active-owner refusal and actual production-wrapper completion pass. Sources, 2170 assets, relevant code/dist/bundle unchanged; workspace removed with empty verified lineage and no retained roots/errors. At that checkpoint the early gate was resolved; authenticated integration, independent live-observation mutations, public acceptance and bounded review were pending. Their later completion is recorded in closure evidence below. Original-loader provenance remains absent.
+- Closure evidence/date/commit/PR: closed 2026-10-10. Nine-case real feasibility report SHA-256 `d1f19c48e804ee35202279c7a9d6e77acead0406087e39c894021a79b3adcdda`; full public/direct report SHA-256 `d9e2e2ee7860e579440547b7877d7883b0e4bf473a22a8005f2fbe0890a9b75f` independently verifies genuine FileBytes, complete source-backed payload/entry and nine source-offset/original-digest/modified-digest mutation rejections. Historical no-provenance/failed attempts remain preserved. Source/asset identity, complete failure rollback and exact owned cleanup passed; one bounded close review and scoped ownership-fix re-review passed. [Phase 3 results](active/phase-3-results.md) retain commands and limitations. Closure concerns the REA adaptation criteria only; PSX-003 separately remains in progress pending approved merge delivery.
 
 ## PSX-004 — MIPS queries and public contract parity
 
 - Status: open; type: feature; severity: medium; phase: 4.
 - Owner: orchestrator, with task delegation per PLAN.md.
-- Evidence: planned later-phase work; Phase 2 now admits the verified default-only PSX import subset, while source-backed attestation and function/instruction semantics remain unavailable. No implementation of this later phase is claimed.
+- Evidence: planned later-phase work; Phase 3 now verifies the adapted static payload and entry for the default-only import subset. Function/instruction semantics and later-phase acceptance remain unperformed. No implementation of this later phase is claimed.
 - Dependencies: Phase 3 accepted.
 - Done-criteria: Delay-slot and reference evidence truthful; CLI/MCP and snapshots preserve PSX identities; Phase 4 checks and delivery satisfied.
 - Tasks and exact verification contract: corresponding phase in PLAN.md.
@@ -77,7 +83,7 @@ No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR 
 
 - Status: open; type: test; severity: high; phase: 5.
 - Owner: orchestrator, with task delegation per PLAN.md.
-- Evidence: planned later-phase work; Phase 2 now admits the verified default-only PSX import subset, while source-backed attestation and function/instruction semantics remain unavailable. No implementation of this later phase is claimed.
+- Evidence: planned later-phase work; Phase 3 now verifies the adapted static payload and entry for the default-only import subset. Function/instruction semantics and later-phase acceptance remain unperformed. No implementation of this later phase is claimed.
 - Dependencies: Phase 4 accepted.
 - Done-criteria: Synthetic public CLI/MCP lanes, declared-host coverage, local patched-AC3 smoke, package/docs and final delivery gates satisfied; missing coverage explicitly blocks corresponding claims.
 - Tasks and exact verification contract: corresponding phase in PLAN.md.

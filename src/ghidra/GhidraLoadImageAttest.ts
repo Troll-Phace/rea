@@ -6,6 +6,8 @@ import {
   nativeLoadImageObservationSchema,
   nativeLoadImageSchema,
 } from "../domain/native/nativeLoadImage.js";
+import { AnalysisOutputError } from "../domain/analysisErrorCore.js";
+import { attestGhidraPsxLoadImage } from "./GhidraPsxLoadImageValues.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
@@ -20,7 +22,7 @@ type LoadImageSnapshotClient = {
   >;
 };
 
-/** Independently verify measured load-image observations for admitted DOS targets. */
+/** Independently verify measured load-image observations for admitted DOS and PSX targets. */
 export const attestGhidraNativeLoadImage = async (
   target: BinaryTarget,
   operation: AnalysisOperation,
@@ -28,14 +30,27 @@ export const attestGhidraNativeLoadImage = async (
   client: LoadImageSnapshotClient,
   mapSessionError: (failure: GhidraSessionError) => AnalysisError,
 ): Promise<Result<JsonValue, AnalysisError>> => {
-  const observations = nativeLoadImageObservationSchema.parse(measured);
-  if (target.format !== "dos-mz" && target.format !== "dos-com") {
+  const parsed = nativeLoadImageObservationSchema.safeParse(measured);
+  if (!parsed.success)
+    return err(
+      new AnalysisOutputError(
+        operation,
+        "Ghidra bridge output did not match the load-image observation contract",
+        { cause: parsed.error },
+      ),
+    );
+  const observations = parsed.data;
+  if (
+    target.format !== "dos-mz" &&
+    target.format !== "dos-com" &&
+    target.format !== "ps-x-exe"
+  ) {
     return ok(
       jsonValueSchema.parse(
         nativeLoadImageSchema.parse({
           status: "unsupported",
           reason:
-            "Independent load-image verification currently supports DOS MZ and explicit DOS COM targets only.",
+            "Independent load-image verification currently supports DOS MZ, explicit DOS COM and admitted PS-X EXE targets only.",
           observations,
           limitations: [
             "Other formats expose measured mappings and source identities; no format-specific verification was performed.",
@@ -56,9 +71,11 @@ export const attestGhidraNativeLoadImage = async (
   const snapshot = await client.readTargetSnapshot();
   if (!snapshot.ok) return err(mapSessionError(snapshot.error));
   const attested = (
-    target.format === "dos-com"
-      ? attestGhidraDosComLoadImage
-      : attestGhidraDosLoadImage
+    target.format === "ps-x-exe"
+      ? attestGhidraPsxLoadImage
+      : target.format === "dos-com"
+        ? attestGhidraDosComLoadImage
+        : attestGhidraDosLoadImage
   )(snapshot.value, target.sha256 ?? "", observations);
   if (!attested.ok)
     return err(

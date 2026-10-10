@@ -156,6 +156,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
     private final ReaGhidraExtensions analysisExtensions = new ReaGhidraExtensions();
     private static AddressSpace sessionDefaultAddressSpace;
     private JsonObject psxImportAgreement;
+    private JsonObject psxImportDescriptor;
 
     @Override
     public void run() throws Exception {
@@ -167,6 +168,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
         SessionDescriptor descriptor = readDescriptor(descriptorPath);
         if (descriptor.psxImport != null) {
             JsonObject psxDescriptor = ReaGhidraPsxImport.readDescriptor(descriptorPath);
+            psxImportDescriptor = psxDescriptor;
             if (currentProgram == null) throw new IllegalStateException("REA PSX bridge requires an imported program");
             psxImportAgreement = ReaGhidraPsxImport.agreement(descriptorPath, psxDescriptor, currentProgram, monitor);
         }
@@ -440,136 +442,17 @@ public final class ReaGhidraBridge extends HeadlessScript {
         return java.util.HexFormat.of().formatHex(bytes);
     }
 
-    private String hashFileBytes(FileBytes source, boolean modified) throws Exception {
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        byte[] chunk = new byte[65536];
-        for (long offset = 0; offset < source.getSize();) {
-            monitor.checkCancelled();
-            int length = (int) Math.min(chunk.length, source.getSize() - offset);
-            int read = modified
-                ? source.getModifiedBytes(offset, chunk, 0, length)
-                : source.getOriginalBytes(offset, chunk, 0, length);
-            if (read != length) throw new IOException("Incomplete FileBytes read at " + offset);
-            digest.update(chunk, 0, read);
-            offset += read;
-        }
-        return bytesHex(digest.digest());
-    }
-
-    private String hashMemory(Address start, long length) throws Exception {
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        byte[] chunk = new byte[65536];
-        for (long offset = 0; offset < length;) {
-            monitor.checkCancelled();
-            int count = (int) Math.min(chunk.length, length - offset);
-            int read = currentProgram.getMemory().getBytes(start.add(offset), chunk, 0, count);
-            if (read != count) throw new IOException("Incomplete memory read at " + start.add(offset));
-            digest.update(chunk, 0, read);
-            offset += read;
-        }
-        return bytesHex(digest.digest());
-    }
-
     private JsonObject inspectNativeLoadImage(JsonObject params) throws Exception {
         requireKeys(params, Set.of());
-        JsonObject result = new JsonObject();
+        JsonObject result = ReaGhidraPsxProvenance.observe(currentProgram, monitor);
         JsonArray recovery = analysisExtensions.inspectImage();
         if (recovery.size() > 0) result.add("metadata_recovery", recovery);
-        result.addProperty("executable_format", currentProgram.getExecutableFormat());
-        result.addProperty("language_id", currentProgram.getLanguageID().getIdAsString());
-        result.addProperty("compiler_spec_id", currentProgram.getCompilerSpec().getCompilerSpecID().getIdAsString());
-        result.addProperty("image_base", canonicalAddress(currentProgram.getImageBase()));
-        result.addProperty("default_address_space", sessionDefaultAddressSpace.getName());
-        List<FileBytes> files = currentProgram.getMemory().getAllFileBytes();
-        JsonArray sources = new JsonArray();
-        for (FileBytes file : files) {
-            JsonObject source = new JsonObject();
-            source.addProperty("name", file.getFilename());
-            source.addProperty("size", file.getSize());
-            source.addProperty("original_sha256", hashFileBytes(file, false));
-            source.addProperty("modified_sha256", hashFileBytes(file, true));
-            sources.add(source);
+        if (psxImportAgreement != null) {
+            JsonObject before = psxImportAgreement.getAsJsonObject("before");
+            // Query PC from the owned snapshot, independently of the preparation record.
+            JsonObject declarations = ReaGhidraPsxImport.verifiedDeclarations(psxImportDescriptor, monitor);
+            result.add("psx", ReaGhidraPsxProvenance.psxObservation(currentProgram, before.getAsJsonObject("provenance"), declarations, monitor));
         }
-        result.add("source_files", sources);
-        JsonArray mappings = new JsonArray();
-        for (MemoryBlock block : currentProgram.getMemory().getBlocks()) {
-            for (MemoryBlockSourceInfo source : block.getSourceInfos()) {
-                monitor.checkCancelled();
-                JsonObject mapping = new JsonObject();
-                mapping.addProperty("block", block.getName());
-                mapping.addProperty("start", canonicalAddress(source.getMinAddress()));
-                mapping.addProperty("end", canonicalAddress(source.getMaxAddress()));
-                mapping.addProperty("address_space", source.getMinAddress().getAddressSpace().getName());
-                mapping.addProperty("initialized", block.isInitialized());
-                mapping.addProperty("loaded", block.isLoaded());
-                mapping.addProperty("overlay", block.isOverlay());
-                mapping.addProperty("length", source.getLength());
-                FileBytes backing = source.getFileBytes().orElse(null);
-                int sourceIndex = backing == null ? -1 : files.indexOf(backing);
-                if (sourceIndex < 0) mapping.add("source_file_index", JsonNull.INSTANCE);
-                else mapping.addProperty("source_file_index", sourceIndex);
-                long offset = source.getFileBytesOffset();
-                if (offset < 0) mapping.add("file_offset", JsonNull.INSTANCE);
-                else mapping.addProperty("file_offset", offset);
-                if (block.isInitialized()) mapping.addProperty("sha256", hashMemory(source.getMinAddress(), source.getLength()));
-                else mapping.add("sha256", JsonNull.INSTANCE);
-                mappings.add(mapping);
-            }
-        }
-        result.add("mappings", mappings);
-        JsonArray relocations = new JsonArray();
-        Iterator<Relocation> iterator = currentProgram.getRelocationTable().getRelocations();
-        while (iterator.hasNext()) {
-            monitor.checkCancelled();
-            Relocation relocation = iterator.next();
-            Address location = relocation.getAddress();
-            JsonObject row = new JsonObject();
-            row.addProperty("address", canonicalAddress(location));
-            if (location instanceof SegmentedAddress segmented) {
-                row.addProperty("segment", segmented.getSegment());
-                row.addProperty("offset", segmented.getSegmentOffset());
-            } else {
-                row.add("segment", JsonNull.INSTANCE);
-                row.add("offset", JsonNull.INSTANCE);
-            }
-            row.addProperty("status", relocation.getStatus().toString());
-            row.addProperty("type", relocation.getType());
-            row.add("values", GSON.toJsonTree(relocation.getValues() == null ? new long[0] : relocation.getValues()));
-            byte[] original = relocation.getBytes();
-            row.add("original_bytes_hex", original == null ? JsonNull.INSTANCE : GSON.toJsonTree(bytesHex(original)));
-            if (original != null && original.length > 0) {
-                byte[] memory = new byte[original.length];
-                int read = currentProgram.getMemory().getBytes(location, memory);
-                row.add("memory_bytes_hex", read == memory.length ? GSON.toJsonTree(bytesHex(memory)) : JsonNull.INSTANCE);
-            } else row.add("memory_bytes_hex", JsonNull.INSTANCE);
-            relocations.add(row);
-        }
-        result.add("relocations", relocations);
-        List<Address> entries = new ArrayList<>();
-        var entryIterator = currentProgram.getSymbolTable().getExternalEntryPointIterator();
-        while (entryIterator.hasNext()) entries.add(entryIterator.next());
-        entries.sort(Address::compareTo);
-        JsonArray entryPoints = new JsonArray();
-        for (Address entry : entries) entryPoints.add(canonicalAddress(entry));
-        result.add("entry_points", entryPoints);
-        JsonArray contexts = new JsonArray();
-        for (Address entry : entries) {
-            JsonObject context = new JsonObject();
-            context.addProperty("address", canonicalAddress(entry));
-            JsonArray registers = new JsonArray();
-            for (String name : new String[] { "CS", "DS", "ES", "SS" }) {
-                Register register = currentProgram.getRegister(name);
-                if (register == null) continue;
-                JsonObject row = new JsonObject();
-                row.addProperty("name", name);
-                BigInteger value = currentProgram.getProgramContext().getValue(register, entry, false);
-                row.add("value_hex", value == null ? JsonNull.INSTANCE : GSON.toJsonTree("0x" + value.toString(16)));
-                registers.add(row);
-            }
-            context.add("registers", registers);
-            contexts.add(context);
-        }
-        result.add("entry_context", contexts);
         return result;
     }
 

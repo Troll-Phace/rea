@@ -1,6 +1,6 @@
 # PS-X EXE support — phased implementation plan
 
-Status: Phase 1 complete, accepted and merged through [PR #1](https://github.com/Troll-Phace/rea/pull/1); Phase 2 complete, accepted and merged through approved [PR #2](https://github.com/Troll-Phace/rea/pull/2); Phases 3–5 remain planned and unauthorized. Follow the phase delivery workflow through a reviewable PR; merging requires approval of that concrete PR. This document grants no new authority. Repository: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea`; fork `Troll-Phace/rea`, baseline handoff `7aa4d768`, package `6.3.0`.
+Status: Phase 1 complete, accepted and merged through [PR #1](https://github.com/Troll-Phace/rea/pull/1); Phase 2 complete, accepted and merged through approved [PR #2](https://github.com/Troll-Phace/rea/pull/2); Phase 3 technical acceptance and bounded review passed, delivery/approved merge pending; Phases 4–5 remain planned and unauthorized. Follow the phase delivery workflow through a reviewable PR; merging requires approval of that concrete PR. This document grants no new authority. Repository: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea`; fork `Troll-Phace/rea`, baseline handoff `7aa4d768`, package `6.3.0`.
 
 ## Outcome and boundaries
 
@@ -108,6 +108,18 @@ Acceptance: no import starts for missing loader; import/profile disagreement fai
 
 ## Phase 3 — independent PSX memory and entry evidence
 
+Detailed shared execution contract: [Phase 3 plan](active/phase-3-plan.md).
+This contract refines P3.1 into P3-00/P3-11/P3-12/P3-13/P3-21/P3-22/P3-90.
+It plans an explicitly REA-owned transactional payload rebind in the ephemeral
+Program to establish FileBytes provenance, preserving original loader observations
+and independently checking the adapted image. The R1/R2 revisions retain complete
+original journal evidence, disclose recreated payload events and require exact
+operational state, complete rollback and sole transaction ownership. The nine-case real feasibility gate and authenticated startup passed. The full
+public matrix and PSX/DOS/COM regressions passed; package integrity and bounded close review passed. Final-content checks passed; PR delivery and approved merge remain pending.
+The saved contract has been read back and reviewed; the user authorized execution
+on 2026-10-10. PSX-003 remains in progress pending approved delivery; PSX-007 is
+closed on measured producer/mutation criteria. See [measured results](active/phase-3-results.md).
+
 Objective: make verified mean declared and examined coverage. Dependencies: Phase 2 and an explicit PSX-007 producer-provenance adaptation plan; equal mapped bytes cannot establish source offsets. Delivery endpoint: independently checked real synthetic load image, with unsupported/unknown facts explicit.
 
 ### P3.1 — PSX result variant and attestation
@@ -186,7 +198,7 @@ Roles: backend-dev, test-engineer, code-reviewer, issue-triage, each user-select
 
 Each task handoff returns exact files/task IDs, decisions, commands/results, fixture and target identities, evidence depth, limitations, outstanding risks and cleanup outcomes. The reviewer checks malformed/unsupported distinctions, source provenance, delayed flow, snapshot invalidation, source immutability, error handling, cleanup, and regressions. Shared source dependencies must compile at every phase endpoint, even when later capabilities remain unsupported.
 
-Local issue mapping in `docs/ISSUE_LEDGER.md`: PSX-001 — Phase 1 recognition and loader contract; PSX-002 — Phase 2 deterministic import; PSX-003 — Phase 3 independent attestation; PSX-004 — Phase 4 analysis and public API parity; PSX-005 — Phase 5 real verification, package and docs. These records already exist as open, planned entries; maintain their linked task IDs, scope, dependencies, owner, acceptance criteria and required closure evidence. Allowed states are pending, open, in-progress, blocked and closed. Move an entry to closed only when its required acceptance and delivery evidence is recorded; retain unavailable live gates explicitly. Triage records verified deferred defects in this local ledger with the next PSX ID, evidence, impact and done criteria. There is no remote issue or milestone gate. Reference local IDs as plain text in commits/PRs; never use GitHub closing keywords for these IDs.
+Local issue mapping in `docs/ISSUE_LEDGER.md`: PSX-001 — Phase 1 recognition and loader contract; PSX-002 — Phase 2 deterministic import; PSX-003 — Phase 3 independent attestation; PSX-004 — Phase 4 analysis and public API parity; PSX-005 — Phase 5 real verification, package and docs. These records already exist, with current statuses in the ledger; maintain their linked task IDs, scope, dependencies, owner, acceptance criteria and required closure evidence. Allowed states are pending, open, in-progress, blocked and closed. Move an entry to closed only when its required acceptance and delivery evidence is recorded; retain unavailable live gates explicitly. Triage records verified deferred defects in this local ledger with the next PSX ID, evidence, impact and done criteria. There is no remote issue or milestone gate. Reference local IDs as plain text in commits/PRs; never use GitHub closing keywords for these IDs.
 
 For each future authorized implementation phase: update progress and local issue-ledger wording first; run final-content verification; create Conventional Commit, push and PR; obtain required user PR approval; merge only after that approval; verify final merged SHA and reconcile status. Approval to scaffold/plan is not approval for implementation or delivery now. Keep synthetic, boundary, macOS real-provider, Linux real-provider, local AC3 and packaged-artifact evidence distinct.
 
@@ -196,4 +208,4 @@ Pinned Node 24.18.0/npm 11.16.0 and locked dependencies were established for Pha
 
 Phase 1 measured loader/class identity and demonstrated the RAM-option failure; Phase 2 verified the saved default-only production policy and observed startup agreement. Loss of FileBytes provenance remains PSX-007 and requires a Phase 3 producer-boundary plan. Relevant SDK assets may alter analysis and must participate in profile identity. Delay-slot/p-code behavior requires Phase 4 synthetic decoding. Linux evidence is unavailable until run. The AC3 smoke remains a Phase 5 gate and may expose decompiler limitations without implying payload import failure.
 
-Next action: await user direction for Phase 3 planning or execution. Phases 1 and 2 are complete; no batch rollover applies. Linux and later-phase live gates remain unverified.
+Next action: execute the authorized [Phase 3 contract](active/phase-3-plan.md), including its documented ephemeral Program adaptation and early feasibility gate. Phases 1 and 2 are complete; no batch rollover applies. Linux and later-phase live gates remain unverified.

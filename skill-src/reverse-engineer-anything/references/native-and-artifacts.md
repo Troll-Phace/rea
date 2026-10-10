@@ -69,6 +69,19 @@ Null class/meta flags, ivar counts, atomicity, or read-only values mean the
 selected provider did not establish that fact. Symbol names alone do not prove
 that a class is a root class or has no ivars.
 
+## PS-X EXE with Ghidra
+
+For an admitted PS-X EXE, use `inspect_native_load_image` to check complete
+declared payload coverage, source offsets/digests and the exact entry instruction
+against the immutable snapshot. Preserve `mismatch`, `unsupported` and named
+unknown checks. REA may create FileBytes-backed payload blocks in its disposable
+analysis Program; verified refers to that adapted static image. It does not
+establish original-loader lineage, runtime correctness or MIPS query semantics.
+The complete original label journal is retained as evidence, with recreation
+differences disclosed; the live journal is not claimed restored. Missing SP and
+uninitialized fill content remain unknown. Function/instruction queries remain
+unavailable until their separate support gate is satisfied.
+
 ## Managed PE/CLI
 
 Start with `inspect_managed_artifact`. REA's canonical managed inspection is

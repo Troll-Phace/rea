@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import {
-  nativeLoadImageSchema,
-  type NativeLoadImage,
+  legacyNativeLoadImageSchema,
+  type LegacyNativeLoadImage,
   type NativeLoadImageCheck,
   type NativeLoadImageObservation,
 } from "../domain/native/nativeLoadImage.js";
@@ -25,7 +25,7 @@ export const attestGhidraDosLoadImage = (
   bytes: Buffer,
   targetSha256: string,
   observations: NativeLoadImageObservation,
-): Result<NativeLoadImage, string> => {
+): Result<LegacyNativeLoadImage, string> => {
   if (sha256(bytes) !== targetSha256)
     return err(
       "Ghidra load-image snapshot digest does not match the admitted target",
@@ -124,7 +124,7 @@ export const attestGhidraDosLoadImage = (
 
   checkMappings(header, loadSegment * 16, bytes, modified, observations, check);
   return ok(
-    nativeLoadImageSchema.parse({
+    legacyNativeLoadImageSchema.parse({
       status: checks.every((item) => item.matched) ? "verified" : "mismatch",
       format: "dos-mz",
       target_sha256: targetSha256,
@@ -249,7 +249,7 @@ export const attestGhidraDosComLoadImage = (
   bytes: Buffer,
   targetSha256: string,
   observations: NativeLoadImageObservation,
-): Result<NativeLoadImage, string> => {
+): Result<LegacyNativeLoadImage, string> => {
   if (sha256(bytes) !== targetSha256)
     return err("Ghidra COM snapshot digest does not match the admitted target");
   const length = validateDosComLength(bytes.length);
@@ -305,7 +305,7 @@ export const attestGhidraDosComLoadImage = (
     check,
   );
   return ok(
-    nativeLoadImageSchema.parse({
+    legacyNativeLoadImageSchema.parse({
       status: checks.every((item) => item.matched) ? "verified" : "mismatch",
       format: "dos-com",
       target_sha256: targetSha256,

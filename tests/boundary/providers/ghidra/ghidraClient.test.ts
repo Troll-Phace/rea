@@ -5,7 +5,9 @@ import {
   access,
   chmod,
   mkdir,
+  readFile,
   realpath,
+  rm,
   symlink,
   writeFile,
 } from "node:fs/promises";
@@ -31,6 +33,7 @@ import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js
 import {
   createPsxInstallationFixture,
   psxFixtureAgreement,
+  psxFixtureOriginalRecord,
   psxFixtureSha256,
   psxImportBytes,
 } from "../../../fixtures/ghidraPsxImport.js";
@@ -80,6 +83,7 @@ class FixtureLauncher implements GhidraLauncher {
     this.#notifyStarted = resolve;
   });
   readonly runtimeRoots: string[] = [];
+  readonly snapshotPaths: string[] = [];
   readonly endpointPaths: string[] = [];
   readonly tokens: string[] = [];
   readonly processes: ChildProcess[] = [];
@@ -89,6 +93,7 @@ class FixtureLauncher implements GhidraLauncher {
 
   async launch(session: GhidraLaunchSession) {
     this.runtimeRoots.push(session.runtimeRoot);
+    this.snapshotPaths.push(session.targetPath);
     this.endpointPaths.push(session.endpointPath);
     this.tokens.push(session.token);
     const projectRoot = join(session.runtimeRoot, "project");
@@ -164,7 +169,7 @@ afterEach(async () => {
   await Promise.all(clients.splice(0).map((client) => client.close()));
 });
 
-describe("GhidraClient", () => {
+describe("GhidraClient immutable snapshot ownership", () => {
   it("exposes the immutable import snapshot only during the live session", async () => {
     const client = clientFor(new FixtureLauncher());
     await expect(client.readTargetSnapshot()).resolves.toMatchObject({
@@ -182,6 +187,28 @@ describe("GhidraClient", () => {
     });
   });
 
+  it("reports an inaccessible owned snapshot without substituting the caller source", async () => {
+    const launcher = new FixtureLauncher();
+    const client = clientFor(launcher);
+    const started = await client.start();
+    if (!started.ok) throw started.error;
+    await rm(launcher.snapshotPaths[0]!);
+    expect(await client.readTargetSnapshot()).toMatchObject({
+      ok: false,
+      error: {
+        kind: "protocol",
+        message: expect.stringContaining("could not be read"),
+      },
+    });
+    const closed = await client.close();
+    if (!closed.ok) throw closed.error;
+    await expect(access(launcher.runtimeRoots[0]!)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+});
+
+describe("GhidraClient authenticated protocol", () => {
   it("completes an exact, fragmented post-analysis handshake", async () => {
     const launcher = new FixtureLauncher("fragmented");
     const client = clientFor(launcher);
@@ -775,6 +802,14 @@ type PsxClientMutation = {
   readonly marker?: "missing" | "wrong" | "duplicate";
   readonly exitZero?: boolean;
   readonly mutateAsset?: boolean;
+  readonly originalFile?:
+    | "missing"
+    | "tamper"
+    | "extra-field"
+    | "malformed"
+    | "symlink"
+    | "directory";
+  readonly beforeFile?: "tamper";
   readonly reportIdentity?: "canonical" | "escaped-symlink";
   readonly metadataIdentity?: "escaped-symlink";
   readonly analysisReport?:
@@ -921,6 +956,86 @@ const producer = `
   });
   server.listen(input.endpoint);
 `;
+const preparePsxFixtureRecords = async (
+  session: GhidraLaunchSession,
+  fixtureRoot: string,
+  produced: ReturnType<typeof psxSessionFixture>,
+  mutation?: PsxClientMutation,
+) => {
+  let agreement = produced.agreement;
+  const info = produced.info;
+  await writeFile(
+    join(session.runtimeRoot, "psx-provenance-original.json"),
+    `${JSON.stringify(psxFixtureOriginalRecord(agreement.before.commitment, agreement.before.provenance.metadata_preservation))}\n`,
+    { mode: 0o600 },
+  );
+  await writeFile(
+    join(session.runtimeRoot, "psx-import-before.json"),
+    `${JSON.stringify(agreement.before)}\n`,
+    { mode: 0o600 },
+  );
+  const originalPath = join(
+    session.runtimeRoot,
+    "psx-provenance-original.json",
+  );
+  if (mutation?.originalFile === "missing") await rm(originalPath);
+  if (mutation?.originalFile === "tamper")
+    await writeFile(originalPath, "{}\n");
+  if (mutation?.originalFile === "symlink") {
+    const outside = join(fixtureRoot, "external original record.json");
+    await writeFile(outside, await readFile(originalPath));
+    await rm(originalPath);
+    await symlink(outside, originalPath);
+  }
+  if (mutation?.originalFile === "directory") {
+    await rm(originalPath);
+    await mkdir(originalPath);
+  }
+  if (
+    mutation?.originalFile === "extra-field" ||
+    mutation?.originalFile === "malformed"
+  ) {
+    const original = psxFixtureOriginalRecord(
+      agreement.before.commitment,
+      agreement.before.provenance.metadata_preservation,
+    );
+    const bytes =
+      mutation.originalFile === "malformed"
+        ? Buffer.from("{not-json\n")
+        : Buffer.from(
+            `${JSON.stringify({ ...original, extra: "unexpected private-file field" })}\n`,
+          );
+    await writeFile(originalPath, bytes);
+    for (const stage of [agreement.before, agreement.after])
+      stage.provenance.metadata_preservation.original_record_sha256 =
+        psxFixtureSha256(bytes);
+    const beforeBytes = Buffer.from(`${JSON.stringify(agreement.before)}\n`);
+    agreement = {
+      ...agreement,
+      before_record_sha256: psxFixtureSha256(beforeBytes),
+    };
+    info.psx_import = agreement;
+    await writeFile(
+      join(session.runtimeRoot, "psx-import-before.json"),
+      beforeBytes,
+    );
+  }
+  if (mutation?.beforeFile === "tamper")
+    await writeFile(
+      join(session.runtimeRoot, "psx-import-before.json"),
+      `${JSON.stringify({ ...agreement.before, unexpected: true })}\n`,
+    );
+  if (mutation?.metadataIdentity !== undefined) {
+    agreement = await psxAliasedMetadataAgreement(
+      session,
+      fixtureRoot,
+      agreement,
+    );
+    info.psx_import = agreement;
+  }
+  return { agreement, info };
+};
+
 const psxClient = async (mutation?: PsxClientMutation) => {
   const fixture = await createPsxInstallationFixture();
   const inspected = await inspectGhidraPsxLoader(
@@ -950,16 +1065,12 @@ const psxClient = async (mutation?: PsxClientMutation) => {
         commitment,
         mutation,
       );
-      let agreement = produced.agreement;
-      const info = produced.info;
-      if (mutation?.metadataIdentity !== undefined) {
-        agreement = await psxAliasedMetadataAgreement(
-          session,
-          fixture.root,
-          agreement,
-        );
-        info.psx_import = agreement;
-      }
+      const { agreement, info } = await preparePsxFixtureRecords(
+        session,
+        fixture.root,
+        produced,
+        mutation,
+      );
       let marker = `REA_PSX_IMPORT_BEFORE_COMPLETE ${session.runId} ${agreement.before_record_sha256}`;
       if (mutation?.marker === "missing") marker = "";
       if (mutation?.marker === "wrong")
@@ -1144,6 +1255,44 @@ describe.skipIf(process.platform === "win32")(
       expect(await waitForExit(fixture.child())).toBe(true);
       expect(fixture.requests).toEqual(["ping", "shutdown"]);
     });
+    it.each([
+      "missing",
+      "tamper",
+      "extra-field",
+      "malformed",
+      "symlink",
+      "directory",
+    ] as const)(
+      "rejects %s fixed original evidence through the real file boundary and cleans the owned session",
+      async (originalFile) => {
+        const fixture = await psxClient({ originalFile });
+        expect(await fixture.client.start()).toMatchObject({
+          ok: false,
+          error: { kind: "protocol" },
+        });
+        await expect(access(fixture.runtime() ?? "")).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+        expect(await waitForExit(fixture.child())).toBe(true);
+      },
+    );
+    it("rejects changed fixed before-record bytes despite an unchanged readiness marker", async () => {
+      const fixture = await psxClient({ beforeFile: "tamper" });
+      expect(await fixture.client.start()).toMatchObject({
+        ok: false,
+        error: { kind: "protocol" },
+      });
+      await expect(access(fixture.runtime() ?? "")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      expect(await waitForExit(fixture.child())).toBe(true);
+    });
+  },
+);
+
+describe.skipIf(process.platform === "win32")(
+  "PSX startup coordinate and analysis correlation (simulated Java producer)",
+  () => {
     it.each(["canonical", "escaped-symlink"] as const)(
       "accepts %s file URI only through the actual owned snapshot identity",
       async (reportIdentity) => {

@@ -158,7 +158,17 @@ export const createGhidraProviderClient = (input: {
       !analyzers.success ||
       installation.status !== "available" ||
       extensions.length > 0 ||
-      commitment.data.source_sha256 !== target.sha256
+      commitment.data.source_sha256 !== target.sha256 ||
+      committedProfile.parameters.psx_operation_scope !==
+        "inventory-and-load-image-v1" ||
+      committedProfile.parameters.psx_source_provenance !==
+        "rea-psx-filebytes-rebind-v2" ||
+      committedProfile.parameters.psx_preparation_transaction !==
+        "exclusive-top-level-v1" ||
+      committedProfile.parameters.startup_agreement !==
+        "psx-observed-import-and-provenance-v3" ||
+      committedProfile.parameters.load_image_evidence !==
+        "independent-psx-adapted-payload-entry-v2"
     )
       return unavailableClient(
         new ProviderAdapterError("ghidra", "open_binary", {

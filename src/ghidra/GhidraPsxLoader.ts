@@ -585,7 +585,8 @@ export const createGhidraPsxCommitment = (
 ): PsxImportCommitment => {
   const hex = (value: number) => `0x${value.toString(16)}`;
   return psxImportCommitmentSchema.parse({
-    schema_version: 1,
+    schema_version: 3,
+    source_provenance: "rea-psx-filebytes-rebind-v2",
     policy: "psx-kseg0-2m-defaults-v1",
     source_snapshot_path: path,
     source_sha256: sha256,

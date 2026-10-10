@@ -100,6 +100,7 @@ import { pathToFileURL } from "node:url";
 import {
   psxFixtureAgreement,
   psxFixtureCommitment,
+  psxFixtureOriginalRecord,
 } from "../../tests/fixtures/ghidraPsxImport.js";
 import type {
   GhidraPsxStartupExpectation,
@@ -178,6 +179,15 @@ const psxOptions = (value = psxSession()) => ({
   targetSha256: psxCommitment.source_sha256,
   psxImport: psxExpected,
   psxBeforeRecordSha256: value.psx_import.before_record_sha256,
+  psxOriginalEvidence: {
+    record: psxFixtureOriginalRecord(
+      value.psx_import.before.commitment,
+      value.psx_import.before.provenance.metadata_preservation,
+    ),
+    sha256:
+      value.psx_import.before.provenance.metadata_preservation
+        .original_record_sha256,
+  },
 });
 const observationLeaves = (value: unknown, path: string[] = []): string[][] => {
   if (value !== null && typeof value === "object")
@@ -202,6 +212,70 @@ const mutateLeaf = (value: unknown, path: string[]): void => {
           : true;
 };
 describe("strict independently observed PSX startup agreement", () => {
+  it("requires fixed original evidence and independently binds its exact digest, identity and full rows", () => {
+    const value = psxSession();
+    const options = psxOptions(value);
+    const { psxOriginalEvidence: _original, ...missing } = options;
+    expect(
+      parseGhidraSessionInfo(jsonValueSchema.parse(value), missing).ok,
+    ).toBe(false);
+    for (const path of observationLeaves(options.psxOriginalEvidence.record)) {
+      const changed = structuredClone(options.psxOriginalEvidence);
+      mutateLeaf(changed.record, path);
+      expect(
+        parseGhidraSessionInfo(jsonValueSchema.parse(value), {
+          ...options,
+          psxOriginalEvidence: changed,
+        }).ok,
+      ).toBe(false);
+    }
+    expect(
+      parseGhidraSessionInfo(jsonValueSchema.parse(value), {
+        ...options,
+        psxOriginalEvidence: {
+          ...options.psxOriginalEvidence,
+          sha256: "0".repeat(64),
+        },
+      }).ok,
+    ).toBe(false);
+  });
+  it.each([
+    [
+      "false operational equality",
+      (record: PsxImportObservation) => {
+        record.provenance.metadata_preservation.operational_state_matched = false;
+      },
+    ],
+    [
+      "incorrect journal delta",
+      (record: PsxImportObservation) => {
+        record.provenance.metadata_preservation.label_history.removed_before_ordinals =
+          [];
+      },
+    ],
+    [
+      "invalid long date",
+      (record: PsxImportObservation) => {
+        record.provenance.metadata_preservation.label_history.after[0]!.modification_time_ms =
+          "9223372036854775808";
+      },
+    ],
+    [
+      "unavailable with applied links",
+      (record: PsxImportObservation) => {
+        record.provenance.status = "unavailable";
+        record.provenance.reason = "Unavailable";
+      },
+    ],
+  ] as const)("rejects matching forged stages with %s", (_name, mutate) => {
+    const value = psxSession();
+    const options = psxOptions();
+    mutate(value.psx_import.before);
+    mutate(value.psx_import.after);
+    expect(
+      parseGhidraSessionInfo(jsonValueSchema.parse(value), options).ok,
+    ).toBe(false);
+  });
   it("accepts exact before/after observations with URL-aware code sources and unknown analyzer option", () => {
     const value = psxSession();
     expect(

@@ -52,16 +52,60 @@ the terminal import report follows the serving postScript. The owned PSX
 snapshot coordinate is canonicalized before transport. A zero process exit
 alone cannot establish import success.
 
-This phase admits inventory observations. PSX function analysis, instruction
+Phase 2 admitted inventory observations. PSX function analysis, instruction
 queries, call-target analysis and annotations are unavailable until Phase 4.
-`inspect_native_load_image` retains measured observations with `unsupported`
-verification; matching bytes cannot establish original source offsets.
-Missing SP, uninitialized fill and empty FileBytes remain explicit limitations.
+At that checkpoint `inspect_native_load_image` returned `unsupported` because
+matching bytes could not establish original source offsets. Phase 3 adds the
+adapted static-image evidence described below. Missing SP, uninitialized fill
+and absent original-loader FileBytes remain explicit limitations.
 The [Phase 2 results](active/phase-2-results.md) record nine real macOS imports
 on Ghidra 12.1.4/Temurin 25.0.4.1 across three generated fixtures and four
 pre-allocation policy refusals, with source/asset preservation and verified
 cleanup. Linux remains unverified. PSX runtime behavior and complete
 packaged-provider support remain later gates.
+
+## PSX Phase 3 image evidence
+
+`inspect_native_load_image` returns a PSX-specific `verified`, `mismatch` or
+`unsupported` result with source declarations, measured mappings, named checks,
+examined coverage and limitations. It independently reads the immutable snapshot
+and checks the entire declared payload, genuine FileBytes/source offsets and
+digests, mapped bytes, external entry and exact four-byte listing instruction at
+the declared PC. A containing instruction is insufficient. Trailing source bytes
+participate in source identity without becoming payload coverage. Optional
+unobserved SP or fill content remains unknown; zero declarations are retained.
+
+The installed PSX loader supplies no original FileBytes. During opening,
+REA may rebind approved payload blocks to FileBytes in its disposable Program
+under method `rea-psx-filebytes-rebind-v2`. It checks original content first and
+preserves complete enumerated operational state. The wrapper releases only its
+own script transaction, and preparation refuses any remaining active transaction.
+Actual final commit and current source/state validation precede readiness;
+failure requires complete original rollback. A preflight-unavailable adaptation
+retains inventory with unsupported verification. Executable bytes, GUI databases
+and installed loader files are unchanged.
+
+Public Ghidra APIs cannot restore deleted loader label history. REA retains the
+complete original journal in authenticated fixed-file evidence, reports the
+adapted journal and exact duplicate-preserving differences, and discloses
+restoration-generated payload ADD events. It does not claim to restore that live
+journal. Unsupported and rollback outcomes require complete journal equality.
+Fresh after-analysis journal facts are distinct from preparation journals.
+
+Startup version 3 binds original evidence, preparation, source, run and profile
+through the existing authenticated channel. Missing, forged or stale records
+fail startup with owned cleanup. Semantic profile parameters identify the
+provenance method, independent image checks and exclusive transaction policy;
+old PSX snapshot profiles cannot silently reuse the new interpretation. DOS and
+COM contracts retain their existing behavior.
+
+Verified applies to the enumerated REA-adapted static image, not original-loader
+lineage or runtime execution. Function/instruction queries remain gated for
+Phase 4. See the [contract](active/phase-3-plan.md) and
+[results](active/phase-3-results.md) for current measured coverage; direct
+noanalysis feasibility, public auto-analysis acceptance and replay mutations are
+separate evidence. Linux, game inputs and installed-package/fresh-client
+acceptance remain unperformed.
 
 ## Admitted function-analysis semantics
 

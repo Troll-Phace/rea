@@ -50,6 +50,7 @@ function expectStrictInputSchemaParity(
     "open_binary",
     "close_binary",
     "binary_session",
+    "inspect_native_load_image",
     "find_changed_behavior",
     "build_call_path",
     "record_unknown",

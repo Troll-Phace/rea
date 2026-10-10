@@ -52,6 +52,7 @@
     "bridge/ghidra/ReaGhidraPrepareCom.java",
     "bridge/ghidra/ReaGhidraPsxImport.java",
     "bridge/ghidra/ReaGhidraPreparePsx.java",
+    "bridge/ghidra/ReaGhidraPsxProvenance.java",
     "bridge/android/ReaJadxBridge.java",
     "bridge/mitmproxy/capture.py",
     "scripts/rea.mjs",
@@ -230,7 +231,8 @@
     "artifacts:error-schema": "node scripts/generate-error-schema.mjs",
     "test:prepare": "node scripts/check-dependency-install.mjs && node scripts/run-exclusive.mjs artifacts turbo run artifacts:mcp-catalog artifacts:product-catalog artifacts:managed-evidence",
     "evidence:check:built": "node scripts/generate-completion-ledger.mjs --check",
-    "docs:prepare": "node scripts/generate-package-metadata.mjs && turbo run artifacts:product-catalog artifacts:managed-evidence artifacts:error-schema"
+    "docs:prepare": "node scripts/generate-package-metadata.mjs && turbo run artifacts:product-catalog artifacts:managed-evidence artifacts:error-schema",
+    "verify:ghidra:psx-load-image": "npm run build:cached && node scripts/verify-real-ghidra-psx-load-image.mjs"
   },
   "lint-staged": {
     "*.{cjs,cts,js,jsx,mjs,mts,ts,tsx}": [

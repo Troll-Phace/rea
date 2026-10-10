@@ -4,7 +4,9 @@ import {
   psxImportAgreementSchema,
   type GhidraPsxStartupExpectation,
   type PsxImportAgreement,
+  type PsxOriginalEvidenceRecord,
 } from "./GhidraImportConfiguration.js";
+import { validateGhidraPsxPreparation } from "./GhidraPsxLoadImageValues.js";
 import { z } from "zod";
 
 import type { JsonValue } from "../domain/jsonValue.js";
@@ -66,6 +68,10 @@ export const parseGhidraSessionInfo = (
     readonly targetSha256: string;
     readonly psxImport?: GhidraPsxStartupExpectation;
     readonly psxBeforeRecordSha256?: string;
+    readonly psxOriginalEvidence?: {
+      readonly record: PsxOriginalEvidenceRecord;
+      readonly sha256: string;
+    };
     readonly expectedReadOnly?: boolean;
     readonly expectedLanguageId?: string;
     readonly expectedCompilerSpecId?: string;
@@ -104,6 +110,7 @@ export const parseGhidraSessionInfo = (
           expected.profileDigest,
           expected.providerVersion,
           expected.psxBeforeRecordSha256,
+          expected.psxOriginalEvidence,
         ))
   )
     return err(new Error("Ghidra bridge handshake identity is invalid"));
@@ -167,9 +174,44 @@ const validatePsxAgreement = (
   profileDigest: string,
   version: string,
   beforeHash?: string,
+  originalEvidence?: {
+    readonly record: PsxOriginalEvidenceRecord;
+    readonly sha256: string;
+  },
 ): boolean => {
   const commitment = expected.commitment;
-  if (beforeHash !== undefined && agreement.before_record_sha256 !== beforeHash)
+  if (
+    beforeHash === undefined ||
+    agreement.before_record_sha256 !== beforeHash ||
+    originalEvidence === undefined
+  )
+    return false;
+  const provenance = agreement.before.provenance;
+  const metadata = provenance.metadata_preservation;
+  const original = originalEvidence.record;
+  if (
+    original.schema_version !== 1 ||
+    !validateGhidraPsxPreparation(provenance, {
+      sourceSha256: commitment.source_sha256,
+      sourceFileBytes: commitment.declarations.file_bytes,
+      payloadStart: Number.parseInt(
+        commitment.declarations.payload_address.slice(2),
+        16,
+      ),
+      payloadBytes: commitment.declarations.payload_bytes,
+    }).ok ||
+    originalEvidence.sha256 !== metadata.original_record_sha256 ||
+    original.commitment.run_id !== runId ||
+    original.commitment.profile_digest !== profileDigest ||
+    original.commitment.source_sha256 !== commitment.source_sha256 ||
+    original.state_sha256 !== metadata.original_state_sha256 ||
+    original.operational_state_sha256 !==
+      metadata.original_operational_state_sha256 ||
+    JSON.stringify(original.label_history) !==
+      JSON.stringify(metadata.label_history.before) ||
+    JSON.stringify(agreement.before.provenance) !==
+      JSON.stringify(agreement.after.provenance)
+  )
     return false;
   for (const record of [agreement.before, agreement.after]) {
     const observed = record.observed;

@@ -129,6 +129,70 @@ const open = async (session: ReturnType<typeof fixture>["session"]) => {
   expect((await session.openResolvedTarget(preview.value)).ok).toBe(true);
 };
 
+const identity = { id: "ghidra", name: "Ghidra", version: "12.1.4" };
+const recording = (
+  assetDigest = "b".repeat(64),
+  startup = "psx-observed-import-and-provenance-v3",
+  provenance = "rea-psx-filebytes-rebind-v2",
+  transaction = "exclusive-top-level-v1",
+) => {
+  let calls = 0;
+  const profile = createAnalysisProfile(identity, {
+    target_format: "ps-x-exe",
+    asset_inventory_digest: assetDigest,
+    startup_agreement: startup,
+    ...(startup === "psx-observed-import-v1"
+      ? {
+          psx_operation_scope: "inventory-observations-only-v1",
+          load_image_evidence:
+            "unsupported-with-observations-no-source-backed-coverage-v1",
+        }
+      : {
+          psx_operation_scope: "inventory-and-load-image-v1",
+          psx_source_provenance: provenance,
+          psx_preparation_transaction: transaction,
+          load_image_evidence: "independent-psx-adapted-payload-entry-v2",
+        }),
+  });
+  const provider: AnalysisProvider = {
+    identity: () => identity,
+    capabilities: () => [
+      {
+        provider: identity,
+        operation: "list_strings",
+        available: true,
+        reason: null,
+        limitations: [],
+        cachePolicy: "snapshot",
+        effects: {
+          mutatesArtifact: false,
+          launchesProcess: true,
+          mayShowUi: false,
+          mayAccessNetwork: false,
+          mayWriteFilesystem: true,
+          changesPermissions: false,
+          requiresRoot: false,
+        },
+      },
+    ],
+    resolveAnalysisProfile: async () => ok({ profile }),
+    createClient: () => ({
+      execute: async (operation) => {
+        if (operation !== "health") calls += 1;
+        return ok(
+          createAnalysisExecution(
+            [{ address: "0x80010000", value: "synthetic inventory" }],
+            identity,
+            { analysisProfile: profile },
+          ),
+        );
+      },
+      close: async () => ok(null),
+    }),
+  };
+  return { session: createTestBinarySession(provider), calls: () => calls };
+};
+
 describe("PSX snapshot identity with a recording provider", () => {
   it("replays PSX inventory only for the same source, resource and startup semantics", async () => {
     const target: BinaryTarget = {
@@ -136,56 +200,6 @@ describe("PSX snapshot identity with a recording provider", () => {
       format: "ps-x-exe",
       architecture: "mips",
       availableArchitectures: ["mips"],
-    };
-    const identity = { id: "ghidra", name: "Ghidra", version: "12.1.4" };
-    const recording = (
-      assetDigest = "b".repeat(64),
-      startup = "psx-observed-import-v1",
-    ) => {
-      let calls = 0;
-      const profile = createAnalysisProfile(identity, {
-        target_format: "ps-x-exe",
-        asset_inventory_digest: assetDigest,
-        startup_agreement: startup,
-        operation_scope: "inventory-observations-only-v1",
-      });
-      const provider: AnalysisProvider = {
-        identity: () => identity,
-        capabilities: () => [
-          {
-            provider: identity,
-            operation: "list_strings",
-            available: true,
-            reason: null,
-            limitations: [],
-            cachePolicy: "snapshot",
-            effects: {
-              mutatesArtifact: false,
-              launchesProcess: true,
-              mayShowUi: false,
-              mayAccessNetwork: false,
-              mayWriteFilesystem: true,
-              changesPermissions: false,
-              requiresRoot: false,
-            },
-          },
-        ],
-        resolveAnalysisProfile: async () => ok({ profile }),
-        createClient: () => ({
-          execute: async (operation) => {
-            if (operation !== "health") calls += 1;
-            return ok(
-              createAnalysisExecution(
-                [{ address: "0x80010000", value: "synthetic inventory" }],
-                identity,
-                { analysisProfile: profile },
-              ),
-            );
-          },
-          close: async () => ok(null),
-        }),
-      };
-      return { session: createTestBinarySession(provider), calls: () => calls };
     };
     const initial = recording();
     const preview = await initial.session.previewTarget(target);
@@ -218,7 +232,24 @@ describe("PSX snapshot identity with a recording provider", () => {
     for (const changed of [
       { recording: recording("c".repeat(64)), target },
       {
-        recording: recording("b".repeat(64), "psx-observed-import-v2"),
+        recording: recording("b".repeat(64), "psx-observed-import-v1"),
+        target,
+      },
+      {
+        recording: recording(
+          "b".repeat(64),
+          "psx-observed-import-and-provenance-v3",
+          "rea-psx-filebytes-rebind-v1",
+        ),
+        target,
+      },
+      {
+        recording: recording(
+          "b".repeat(64),
+          "psx-observed-import-and-provenance-v3",
+          "rea-psx-filebytes-rebind-v2",
+          "nested-script-transaction",
+        ),
         target,
       },
       { recording: recording(), target: { ...target, sha256: "d".repeat(64) } },
@@ -233,6 +264,31 @@ describe("PSX snapshot identity with a recording provider", () => {
       expect(changed.recording.calls()).toBe(0);
       await changed.recording.session.close();
     }
+    const legacy = recording("b".repeat(64), "psx-observed-import-v1");
+    const legacyPreview = await legacy.session.previewTarget(target);
+    if (!legacyPreview.ok) throw legacyPreview.error;
+    const legacyOpened = await legacy.session.openResolvedTarget(
+      legacyPreview.value,
+    );
+    if (!legacyOpened.ok) throw legacyOpened.error;
+    const legacyResult = await legacy.session.execute("list_strings", {
+      document: "synthetic PSX",
+    });
+    if (!legacyResult.ok) throw legacyResult.error;
+    const legacySnapshot = legacy.session.exportAnalysisSnapshot();
+    if (!legacySnapshot.ok) throw legacySnapshot.error;
+    await legacy.session.close();
+    const current = recording();
+    const acceptedLegacy = current.session.importAnalysisSnapshot(
+      legacySnapshot.value,
+    );
+    if (!acceptedLegacy.ok) throw acceptedLegacy.error;
+    expect(await current.session.previewTarget(target)).toMatchObject({
+      ok: false,
+      error: { _tag: "EvidenceIntegrityError" },
+    });
+    expect(current.calls()).toBe(0);
+    await current.session.close();
   });
 });
 

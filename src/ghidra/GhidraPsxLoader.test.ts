@@ -240,6 +240,10 @@ describe("default-only KSEG0 provider policy", () => {
       "/owned/source",
       "d".repeat(64),
     );
+    expect(commitment).toMatchObject({
+      schema_version: 3,
+      source_provenance: "rea-psx-filebytes-rebind-v2",
+    });
     expect(commitment.declarations).toMatchObject({
       initial_sp: null,
       stack_offset: "0xabcdef",

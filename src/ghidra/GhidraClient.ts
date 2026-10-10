@@ -1,6 +1,12 @@
 import { validateGhidraPsxLaunch } from "./GhidraPsxLoader.js";
-import { randomBytes, randomUUID } from "node:crypto";
-import { realpathSync } from "node:fs";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+import {
+  constants as fsConstants,
+  realpathSync,
+  type BigIntStats,
+} from "node:fs";
+import { constants as bufferConstants } from "node:buffer";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Socket } from "node:net";
 
@@ -42,7 +48,13 @@ import {
   type GhidraSessionInfo,
 } from "./GhidraSessionValues.js";
 import { createGhidraTargetSnapshot } from "./GhidraTargetSnapshot.js";
-import { readFile } from "node:fs/promises";
+import { readFile, lstat, open, type FileHandle } from "node:fs/promises";
+import {
+  psxOriginalEvidenceRecordSchema,
+  psxImportObservationSchema,
+  type PsxImportObservation,
+  type PsxOriginalEvidenceRecord,
+} from "./GhidraImportConfiguration.js";
 import { connectGhidraSocket } from "./GhidraSocketConnection.js";
 import {
   createGhidraEndpoint,
@@ -54,6 +66,18 @@ import { ghidraSessionRoot } from "./GhidraSessionRoot.js";
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 const SESSION_ROOT = ghidraSessionRoot();
+const sameRecordFileState = (
+  before: BigIntStats,
+  after: BigIntStats,
+): boolean =>
+  before.isFile() &&
+  after.isFile() &&
+  before.dev === after.dev &&
+  before.ino === after.ino &&
+  before.mode === after.mode &&
+  before.size === after.size &&
+  before.mtimeNs === after.mtimeNs &&
+  before.ctimeNs === after.ctimeNs;
 
 /** Closed Java-bridge operation union callable after the exact handshake. */
 export type GhidraOperation =
@@ -90,6 +114,7 @@ export class GhidraClient {
   #processSnapshot: ProviderProcessSnapshot | undefined;
   #lastDiagnostics: Readonly<Record<string, JsonValue>> = {};
   #startupController: AbortController | undefined;
+  readonly #recordHandles = new Map<FileHandle, string>();
   #startPromise: Promise<GhidraStartResult> | undefined;
   #closePromise: Promise<void> | undefined;
   readonly #failure = bindGhidraSessionFailure(
@@ -208,7 +233,7 @@ export class GhidraClient {
     if (!started.ok) return started;
     const result = await this.#wire.request("ping", {}, options);
     if (!result.ok) return result;
-    return this.#parseSessionInfo(result.value);
+    return this.#parseSessionInfo(result.value, options.signal);
   }
 
   /** Execute one admitted operation through the serial per-Program queue. */
@@ -464,7 +489,8 @@ export class GhidraClient {
       deadline,
       request: (method, params, requestOptions) =>
         this.#wire.request(method, params, requestOptions),
-      parseSessionInfo: (value) => this.#parseSessionInfo(value),
+      parseSessionInfo: (value) =>
+        this.#parseSessionInfo(value, deadline.signal),
       failure: this.#failure,
       startupTimeoutMs: this.#options.startupTimeoutMs,
     });
@@ -526,12 +552,22 @@ export class GhidraClient {
     return ok(undefined);
   }
 
-  #parseSessionInfo(value: JsonValue) {
+  async #parseSessionInfo(
+    value: JsonValue,
+    signal?: AbortSignal,
+  ): Promise<Result<GhidraSessionInfo, GhidraSessionError>> {
     const runId = this.#runId;
     if (runId === undefined)
       return err(this.#failure("protocol", "Ghidra run identity is missing"));
     const psxExpected = this.#options.psxImport;
     let psxBeforeRecordSha256: string | undefined;
+    let psxBeforeRecord: PsxImportObservation | undefined;
+    let psxOriginalEvidence:
+      | {
+          record: PsxOriginalEvidenceRecord;
+          sha256: string;
+        }
+      | undefined;
     if (psxExpected !== undefined) {
       const snapshot = this.#process?.snapshot() ?? this.#processSnapshot;
       const output = `${snapshot?.stdout.text ?? ""}\n${snapshot?.stderr.text ?? ""}`;
@@ -585,6 +621,48 @@ export class GhidraClient {
           ),
         );
       psxBeforeRecordSha256 = markers[0]![2]!;
+      try {
+        const root = this.#runtimeRoot?.path;
+        if (root === undefined)
+          throw new Error("Owned PSX runtime is unavailable");
+        // Both records are siblings of the provider-owned session.json descriptor.
+        // No path supplied by the target or authenticated reply selects a file.
+        const before = await this.#readPsxRecord(
+          join(root, "psx-import-before.json"),
+          signal,
+        );
+        const original = await this.#readPsxRecord(
+          join(root, "psx-provenance-original.json"),
+          signal,
+        );
+        const beforeRecord = psxImportObservationSchema.safeParse(
+          JSON.parse(before.bytes.toString("utf8")),
+        );
+        const originalRecord = psxOriginalEvidenceRecordSchema.safeParse(
+          JSON.parse(original.bytes.toString("utf8")),
+        );
+        if (
+          !beforeRecord.success ||
+          !originalRecord.success ||
+          before.sha256 !== psxBeforeRecordSha256
+        )
+          throw new Error(
+            "PSX fixed preparation records contradict the completion marker or authenticated reply",
+          );
+        psxOriginalEvidence = {
+          record: originalRecord.data,
+          sha256: original.sha256,
+        };
+        psxBeforeRecord = beforeRecord.data;
+      } catch (cause) {
+        return err(
+          this.#failure(
+            signal?.aborted ? "cancelled" : "protocol",
+            "PSX fixed preparation evidence could not be validated",
+            cause,
+          ),
+        );
+      }
     }
     const parsed = parseGhidraSessionInfo(value, {
       runId,
@@ -607,6 +685,7 @@ export class GhidraClient {
               },
             },
             psxBeforeRecordSha256: psxBeforeRecordSha256!,
+            psxOriginalEvidence: psxOriginalEvidence!,
           }),
       ...(this.#targetAdmission === undefined
         ? {}
@@ -618,7 +697,20 @@ export class GhidraClient {
         ? {}
         : { expectedCompilerSpecId: this.#options.expectedCompilerSpecId }),
     });
-    if (parsed.ok) return parsed;
+    if (parsed.ok) {
+      if (
+        psxBeforeRecord !== undefined &&
+        JSON.stringify(psxBeforeRecord) !==
+          JSON.stringify(parsed.value.psx_import?.before)
+      )
+        return err(
+          this.#failure(
+            "protocol",
+            "PSX fixed before-record contents contradict the authenticated agreement",
+          ),
+        );
+      return parsed;
+    }
     return err(
       this.#failure(
         "protocol",
@@ -626,6 +718,85 @@ export class GhidraClient {
         parsed.error,
       ),
     );
+  }
+
+  async #readPsxRecord(
+    path: string,
+    signal?: AbortSignal,
+  ): Promise<{ bytes: Buffer; sha256: string }> {
+    signal?.throwIfAborted();
+    const before = await lstat(path, { bigint: true });
+    if (
+      !before.isFile() ||
+      before.size < 1n ||
+      before.size > BigInt(bufferConstants.MAX_STRING_LENGTH)
+    )
+      throw new Error(
+        "PSX evidence must be a nonempty regular file representable by the Node JSON string boundary",
+      );
+    const handle = await open(
+      path,
+      fsConstants.O_RDONLY |
+        (fsConstants.O_NOFOLLOW ?? 0) |
+        (fsConstants.O_NONBLOCK ?? 0),
+    );
+    this.#recordHandles.set(handle, path);
+    let primary: unknown;
+    let result: { bytes: Buffer; sha256: string } | undefined;
+    try {
+      signal?.throwIfAborted();
+      const opened = await handle.stat({ bigint: true });
+      if (!sameRecordFileState(before, opened))
+        throw new Error("PSX evidence file changed before reading");
+      const chunks: Buffer[] = [];
+      const chunk = Buffer.allocUnsafe(
+        Math.min(Number(opened.size) + 1, 64 * 1024),
+      );
+      let total = 0;
+      for (;;) {
+        signal?.throwIfAborted();
+        const read = await handle.read(
+          chunk,
+          0,
+          Math.min(chunk.length, Number(opened.size) - total + 1),
+          null,
+        );
+        if (read.bytesRead === 0) break;
+        total += read.bytesRead;
+        if (total > Number(opened.size))
+          throw new Error("PSX evidence grew during reading");
+        chunks.push(Buffer.from(chunk.subarray(0, read.bytesRead)));
+      }
+      const after = await handle.stat({ bigint: true });
+      const pathAfter = await lstat(path, { bigint: true });
+      signal?.throwIfAborted();
+      if (
+        total !== Number(opened.size) ||
+        !sameRecordFileState(opened, after) ||
+        !sameRecordFileState(after, pathAfter)
+      )
+        throw new Error("PSX evidence changed or was replaced during reading");
+      const bytes = Buffer.concat(chunks, total);
+      result = {
+        bytes,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+      };
+    } catch (cause) {
+      primary = cause;
+    }
+    try {
+      await handle.close();
+      this.#recordHandles.delete(handle);
+    } catch (cause) {
+      throw primary === undefined
+        ? cause
+        : new AggregateError(
+            [primary, cause],
+            "PSX evidence read and handle cleanup failed",
+          );
+    }
+    if (result === undefined) throw primary;
+    return result;
   }
 
   async #close(
@@ -733,6 +904,30 @@ export class GhidraClient {
    * removed so a later close retries it rather than reporting success.
    */
   async #removeRuntimeRoots(): Promise<void> {
+    const handleFailures: unknown[] = [];
+    for (const [handle] of this.#recordHandles) {
+      try {
+        await handle.close();
+        this.#recordHandles.delete(handle);
+      } catch (cause) {
+        handleFailures.push(cause);
+      }
+    }
+    if (handleFailures.length > 0)
+      throw new ProviderCleanupError(
+        "ghidra",
+        [...this.#recordHandles.values()],
+        {
+          reason:
+            "PSX evidence file handles could not be closed; ownership and runtime roots are retained.",
+        },
+        {
+          cause: new AggregateError(
+            handleFailures,
+            "PSX evidence handle cleanup failed",
+          ),
+        },
+      );
     const roots = [
       {
         root: this.#runtimeRoot,

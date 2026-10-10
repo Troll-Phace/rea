@@ -19,7 +19,9 @@ export interface GhidraStartupHandshakeOptions {
   ) => Promise<Result<JsonValue, GhidraSessionError>>;
   readonly parseSessionInfo: (
     value: JsonValue,
-  ) => Result<GhidraSessionInfo, GhidraSessionError>;
+  ) =>
+    | Result<GhidraSessionInfo, GhidraSessionError>
+    | Promise<Result<GhidraSessionInfo, GhidraSessionError>>;
   readonly failure: (
     kind: GhidraSessionFailureKind,
     message: string,
@@ -47,7 +49,8 @@ export async function completeGhidraStartupHandshake(
       : ping.error;
     return err(failure);
   }
-  const parsed = options.parseSessionInfo(ping.value);
+  const parsed = await options.parseSessionInfo(ping.value);
+  if (options.deadline.signal.aborted) return err(interruptionFailure(options));
   if (!parsed.ok || parsed.value.analysis_timed_out) {
     const failure = parsed.ok
       ? options.failure(
