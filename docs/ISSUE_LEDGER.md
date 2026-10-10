@@ -1,7 +1,7 @@
 # PSX issue ledger
 
 Canonical offline ledger. Batch psx-support-2026-10. Next ID: PSX-009.
-No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR #1; PSX-001 is closed. Phase 2 is complete through approved and verified [PR #2](https://github.com/Troll-Phace/rea/pull/2); PSX-002 is closed; PSX-006 is closed by the verified default-only production policy. Phase 3 technical acceptance and bounded review passed; PR delivery and approved merge remain pending. PSX-007 is closed by measured adapted provenance and mutation evidence; Phases 4–5 remain planned and unauthorized.
+No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR #1; PSX-001 is closed. Phase 2 is complete through approved and verified [PR #2](https://github.com/Troll-Phace/rea/pull/2); PSX-002 is closed; PSX-006 is closed by the verified default-only production policy. Phase 3 technical acceptance and bounded review passed; [PR #3](https://github.com/Troll-Phace/rea/pull/3) is open; user approval and merge remain pending. PSX-007 is closed by measured adapted provenance and mutation evidence; Phases 4–5 remain planned and unauthorized.
 
 | ID      | Type    | Severity | Status      | Phase   | Title                                               |
 | ------- | ------- | -------- | ----------- | ------- | --------------------------------------------------- |
@@ -38,12 +38,12 @@ No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR 
 
 - Status: in-progress; type: feature; severity: high; phase: 3.
 - Owner: orchestrator, with task delegation per PLAN.md.
-- Evidence: detailed [Phase 3 contract](active/phase-3-plan.md) saved by Astra/low on 2026-10-10 and reviewed by the orchestrator against `c498013fee5a61d4900a5edb7a9743f2a42b5c75`. It defines the PSX result/status contract, independent source/offset/coverage/entry checks, REA-owned producer provenance, semantic mutations and scoped real synthetic acceptance. The user authorized execution on 2026-10-10; implementation is in progress on `codex/psx-phase-3`, with the feasibility, full public and regression lanes now passed; technical acceptance, package checks and bounded review passed. PR delivery and approved merge remain pending.
+- Evidence: detailed [Phase 3 contract](active/phase-3-plan.md) saved by Astra/low on 2026-10-10 and reviewed by the orchestrator against `c498013fee5a61d4900a5edb7a9743f2a42b5c75`. It defines the PSX result/status contract, independent source/offset/coverage/entry checks, REA-owned producer provenance, semantic mutations and scoped real synthetic acceptance. The user authorized execution on 2026-10-10; implementation is in progress on `codex/psx-phase-3`, with the feasibility, full public and regression lanes now passed; technical acceptance, package checks and bounded review passed. [PR #3](https://github.com/Troll-Phace/rea/pull/3) is open; user approval and merge remain pending.
 - Dependencies: Phase 2 accepted; PSX-007 adapted producer-provenance criteria are now closed. Original-loader lineage remains absent.
 - Done-criteria: Payload coverage, source offsets, entry/context and contradictions independently checked; mutation tests and real evidence pass; Phase 3 delivery satisfied.
 - Tasks and exact verification contract: [shared Phase 3 plan](active/phase-3-plan.md), P3-00/P3-11/P3-12/P3-13/P3-21/P3-22/P3-90; overview in PLAN.md. Early producer preservation/rollback feasibility must pass before broader integration. Instruction/function semantics remain Phase 4.
 - Technical acceptance: [Phase 3 results](active/phase-3-results.md) record 328 integrated source tests, 130 focused boundary tests (one Windows-only skip), required real feasibility/public/replay and PSX/DOS/COM regressions, current package integrity and bounded close review. No unresolved findings remain; PSX-007 is closed.
-- Closure evidence/date/commit/PR: technical acceptance passed 2026-10-10; record remains in progress because concrete PR creation and approved merge delivery are pending.
+- Closure evidence/date/commit/PR: technical acceptance passed 2026-10-10; record remains in progress because [PR #3](https://github.com/Troll-Phace/rea/pull/3) is open and approved merge delivery remains pending. Implementation commit `65e023140e60c0664aa3845b136ec6c82a22accf`; current-head static checks and normal hooks passed.
 
 ## PSX-006 — Installed PSX RAM option value-class mismatch
 

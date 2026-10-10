@@ -1,6 +1,6 @@
 # PS-X EXE support — phased implementation plan
 
-Status: Phase 1 complete, accepted and merged through [PR #1](https://github.com/Troll-Phace/rea/pull/1); Phase 2 complete, accepted and merged through approved [PR #2](https://github.com/Troll-Phace/rea/pull/2); Phase 3 technical acceptance and bounded review passed, delivery/approved merge pending; Phases 4–5 remain planned and unauthorized. Follow the phase delivery workflow through a reviewable PR; merging requires approval of that concrete PR. This document grants no new authority. Repository: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea`; fork `Troll-Phace/rea`, baseline handoff `7aa4d768`, package `6.3.0`.
+Status: Phase 1 complete, accepted and merged through [PR #1](https://github.com/Troll-Phace/rea/pull/1); Phase 2 complete, accepted and merged through approved [PR #2](https://github.com/Troll-Phace/rea/pull/2); Phase 3 technical acceptance and bounded review passed, [PR #3](https://github.com/Troll-Phace/rea/pull/3) open, approved merge pending; Phases 4–5 remain planned and unauthorized. Follow the phase delivery workflow through a reviewable PR; merging requires approval of that concrete PR. This document grants no new authority. Repository: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea`; fork `Troll-Phace/rea`, baseline handoff `7aa4d768`, package `6.3.0`.
 
 ## Outcome and boundaries
 
@@ -115,7 +115,7 @@ Program to establish FileBytes provenance, preserving original loader observatio
 and independently checking the adapted image. The R1/R2 revisions retain complete
 original journal evidence, disclose recreated payload events and require exact
 operational state, complete rollback and sole transaction ownership. The nine-case real feasibility gate and authenticated startup passed. The full
-public matrix and PSX/DOS/COM regressions passed; package integrity and bounded close review passed. Final-content checks passed; PR delivery and approved merge remain pending.
+public matrix and PSX/DOS/COM regressions passed; package integrity and bounded close review passed. Final-content checks passed; [PR #3](https://github.com/Troll-Phace/rea/pull/3) is open; user merge approval and merge remain pending.
 The saved contract has been read back and reviewed; the user authorized execution
 on 2026-10-10. PSX-003 remains in progress pending approved delivery; PSX-007 is
 closed on measured producer/mutation criteria. See [measured results](active/phase-3-results.md).
