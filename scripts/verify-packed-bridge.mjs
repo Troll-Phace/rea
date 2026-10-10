@@ -8,6 +8,8 @@ const packedGhidraBridge = "package/bridge/ghidra/ReaGhidraBridge.java";
 const packedGhidraPsxObserver =
   "package/bridge/ghidra/ReaGhidraPreparePsx.java";
 const packedGhidraPsxHelper = "package/bridge/ghidra/ReaGhidraPsxImport.java";
+const packedGhidraPsxProvenance =
+  "package/bridge/ghidra/ReaGhidraPsxProvenance.java";
 
 /** Check shipped bridge files; real-provider lanes verify runtime behavior. */
 export async function verifyPackedBridge({ workspace, tarball, packedFiles }) {
@@ -16,6 +18,7 @@ export async function verifyPackedBridge({ workspace, tarball, packedFiles }) {
     packedGhidraBridge,
     packedGhidraPsxObserver,
     packedGhidraPsxHelper,
+    packedGhidraPsxProvenance,
   ]) {
     if (!packedFiles.includes(path)) throw new Error(`package omitted ${path}`);
   }

@@ -105,7 +105,7 @@ const report = {
       : "macOS real-host import",
     "patched AC3 acceptance",
     "PSX MIPS instruction semantics",
-    "source-backed PSX provenance",
+    "original-loader source lineage",
     "installed package and fresh-client discovery",
   ],
 };
@@ -303,12 +303,13 @@ async function codeIdentity() {
     "tests/conformance/ghidra/psx-exe-fixture.mjs",
     "bridge/ghidra/ReaGhidraBridge.java",
     "bridge/ghidra/ReaGhidraPsxImport.java",
+    "bridge/ghidra/ReaGhidraPsxProvenance.java",
     "bridge/ghidra/ReaGhidraPreparePsx.java",
     "src/ghidra/GhidraPsxLoader.ts",
     "src/ghidra/GhidraClient.ts",
     "src/ghidra/GhidraSessionValues.ts",
     "src/ghidra/GhidraImportConfiguration.ts",
-    "docs/active/phase-2-plan.md",
+    "docs/active/phase-3-plan.md",
   ];
   const head = (
     await exec("git", ["rev-parse", "HEAD"], { cwd: repository })
@@ -338,13 +339,31 @@ async function publicCall(client, name, arguments_ = {}) {
     name,
   );
 }
-function assertUnsupported(image) {
-  assert.equal(image.status, "unsupported");
-  assert.deepEqual(image.observations.source_files, []);
+function assertVerified(image, sha256) {
+  assert.equal(image.status, "verified");
+  assert.equal(image.format, "ps-x-exe");
+  assert.equal(image.target_sha256, sha256);
+  assert.equal(image.coverage.complete, true);
+  assert.equal(image.coverage.verified_payload_bytes, 2048);
+  assert.equal(image.observations.source_files.length, 1);
+  assert.equal(image.observations.source_files[0].original_sha256, sha256);
+  assert.equal(image.observations.source_files[0].modified_sha256, sha256);
+  assert.deepEqual(image.observations.psx.provenance.before.source_files, []);
+  assert.equal(
+    image.observations.psx.provenance.method,
+    "rea-psx-filebytes-rebind-v2",
+  );
+  assert.equal(image.observations.psx.provenance.status, "applied");
+  const linked = image.observations.mappings.filter(
+    (mapping) => mapping.source_file_index !== null,
+  );
+  assert.ok(linked.length);
   assert.ok(
-    image.observations.mappings.every(
+    linked.every(
       (mapping) =>
-        mapping.source_file_index === null && mapping.file_offset === null,
+        mapping.source_file_index === 0 &&
+        mapping.file_offset ===
+          2048 + Number(BigInt(mapping.start) - 0x80010000n),
     ),
   );
 }
@@ -376,7 +395,7 @@ async function verifyMcp(path, sha256, expected) {
     const documents = await publicCall(client, "list_documents");
     assert.equal(documents.length, 1);
     const image = await publicCall(client, "inspect_native_load_image");
-    assertUnsupported(image);
+    assertVerified(image, sha256);
     assert.ok(
       image.observations.entry_points.includes(
         `0x${expected.initialPc.toString(16)}`,
@@ -388,7 +407,7 @@ async function verifyMcp(path, sha256, expected) {
     assert.equal(
       status.analysis_provider_binding.analysis_profile.parameters
         .psx_operation_scope,
-      "inventory-observations-only-v1",
+      "inventory-and-load-image-v1",
     );
     const gated = await client.callTool({
       name: "read_function_instructions",
@@ -448,7 +467,7 @@ async function verifyCli(path, sha256) {
   assert.equal(evidence.provider.id, "ghidra");
   assert.equal(evidence.subject.digest.sha256, sha256);
   assert.equal(evidence.subject.format, "ps-x-exe");
-  assertUnsupported(evidence.normalized_result);
+  assertVerified(evidence.normalized_result, sha256);
   assert.equal(digest(await readFile(path)), sha256);
   assert.deepEqual(await roots(), [], "CLI owned runtime survived exit");
   return {
@@ -543,7 +562,16 @@ async function captureLiveRuntime(runId, sha256, profile, ownedRoot) {
   };
 }
 function assertImportAgreement(agreement, sha256, expected, profile) {
-  assert.deepEqual(agreement.before.observed, agreement.after.observed);
+  assert.equal(agreement.schema_version, 3);
+  assert.deepEqual(
+    agreement.before.observed.source,
+    agreement.after.observed.source,
+  );
+  assert.deepEqual(agreement.before.provenance, agreement.after.provenance);
+  assert.equal(
+    profile.parameters.psx_preparation_transaction,
+    "exclusive-top-level-v1",
+  );
   assert.equal(agreement.before.observed.source.sha256, sha256);
   assert.equal(agreement.before.observed.source.file_bytes, expected.fileBytes);
   assert.equal(agreement.after.observed.program.ram_size, 2097152);

@@ -12,6 +12,10 @@ import {
   psxImportBytes,
 } from "../../tests/fixtures/ghidraPsxImport.js";
 import { psxImportCommitmentSchema } from "./GhidraImportConfiguration.js";
+import { createGhidraProviderClient } from "./GhidraProviderClient.js";
+import { createAnalysisProfile } from "../domain/analysisProfile.js";
+import { parseConfig } from "../config/parseConfig.js";
+import { silentLogger } from "../logger.js";
 
 const identity = { id: "ghidra", name: "Ghidra", version: null };
 const host: GhidraInstallationHost = {
@@ -90,13 +94,19 @@ describe("canonical PSX analysis identity", () => {
     const parameters = resolved.value.profile.parameters;
     expect(parameters).toMatchObject({
       psx_import: {
+        schema_version: 3,
+        source_provenance: "rea-psx-filebytes-rebind-v2",
         policy: "psx-kseg0-2m-defaults-v1",
         option_mode: "loader-defaults",
         supplied_loader_options: {},
         expected_ram_base: "0x80000000",
         expected_ram_size: 2097152,
       },
-      psx_operation_scope: "inventory-observations-only-v1",
+      psx_operation_scope: "inventory-and-load-image-v1",
+      psx_source_provenance: "rea-psx-filebytes-rebind-v2",
+      psx_preparation_transaction: "exclusive-top-level-v1",
+      startup_agreement: "psx-observed-import-and-provenance-v3",
+      load_image_evidence: "independent-psx-adapted-payload-entry-v2",
     });
     expect(JSON.stringify(parameters)).not.toContain("source_snapshot_path");
     expect(JSON.stringify(parameters)).not.toContain(target.path);
@@ -139,6 +149,60 @@ describe("canonical PSX analysis identity", () => {
     );
     expect(inspect).toHaveBeenCalledTimes(3);
   });
+});
+
+describe("PSX semantic profile admission", () => {
+  it("refuses each superseded PSX semantic identity before allocating a client", async () => {
+    setup();
+    const resolved = await resolveGhidraAnalysisProfile(
+      target,
+      identity,
+      installation,
+    );
+    if (!resolved.ok || resolved.value.profile === null)
+      throw new Error("profile missing");
+    const profile = resolved.value.profile;
+    const config = parseConfig({ GHIDRA_INSTALL_DIR: "/ghidra" });
+    if (!config.ok) throw config.error;
+    for (const [field, value] of [
+      ["psx_operation_scope", "inventory-observations-only-v1"],
+      ["psx_source_provenance", "rea-psx-filebytes-rebind-v1"],
+      ["psx_preparation_transaction", "nested-script-transaction"],
+      ["startup_agreement", "psx-observed-import-v1"],
+      [
+        "load_image_evidence",
+        "unsupported-with-observations-no-source-backed-coverage-v1",
+      ],
+    ] as const) {
+      let allocations = 0;
+      const client = createGhidraProviderClient({
+        config: config.value,
+        environment: {},
+        logger: silentLogger,
+        target,
+        installation,
+        profile: createAnalysisProfile(profile.provider, {
+          ...profile.parameters,
+          [field]: value,
+        }),
+        clientFactory: () => {
+          allocations++;
+          throw new Error("stale profile allocated a client");
+        },
+      });
+      const result = await client.execute("health", {});
+      expect(result).toMatchObject({
+        ok: false,
+        error: { _tag: "ProviderAdapterError" },
+      });
+      expect(allocations).toBe(0);
+      const closed = await client.close();
+      if (!closed.ok) throw closed.error;
+    }
+  });
+});
+
+describe("PSX profile policy and format isolation", () => {
   it("retains typed policy diagnostics and declines candidate inspection on unsupported layout", async () => {
     const inspect = setup();
     const parsed = parsePsxExeHeader(psxImportBytes({ 0x20: 1 }));

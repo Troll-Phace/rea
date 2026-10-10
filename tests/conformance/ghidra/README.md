@@ -84,8 +84,8 @@ private before-analysis observations and separately labeled authenticated
 provider-boundary before/after observations. Public stdio MCP and CLI sessions
 are distinct imports; their identical fixture/profile identities are checked,
 and the provider-boundary health record is not attributed to a public session.
-The public load-image result must remain unsupported with empty source-file
-provenance. Function instructions remain gated. Four generated header-policy
+The public load-image result must verify source-backed adapted payload coverage
+while retaining the original empty loader provenance. Function instructions remain gated. Four generated header-policy
 negatives must fail before allocating a provider runtime.
 
 Reports contain explicitly selected provider/JDK coordinates and selected
@@ -95,5 +95,71 @@ The verifier requires unchanged source bytes, awaited owned-root cleanup and a
 verified empty process lineage. Failed runs retain their diagnostic report;
 cleanup failure retains ownership of the affected runtime. This lane establishes
 production import on its measured host only. Linux, MIPS instruction semantics,
-source-backed provenance, patched AC3, and installed-package/fresh-client
+original-loader provenance, patched AC3, and installed-package/fresh-client
 operation remain separate gates.
+
+`scripts/verify-real-ghidra-psx-load-image.mjs --stage feasibility` checks
+Phase 3 production preparation through the unshipped
+`ReaPsxProvenanceContractProbe.java`. It accepts no caller binary path and uses
+only the original generated baseline and declared-registers-fill inputs. The
+test-only split, journal-multiplicity, unsupported-data, cancelled-transaction,
+original-record-tamper, active-transaction refusal and actual production-wrapper
+modes establish
+producer-boundary preservation and rollback; they are not public CLI/MCP
+positive evidence and introduce no fault flags into the packaged product.
+
+```bash
+GHIDRA_INSTALL_DIR=/absolute/ghidra JAVA_HOME=/absolute/temurin-25 \
+  npm run verify:ghidra:psx-load-image -- --stage feasibility
+```
+
+This early stage uses `-noanalysis`. Its `after-analysis` metadata stage names
+validate version-3 correlation only; they do not show auto-analysis ran. The
+profile is a synthetic preparation commitment, separate from the canonical
+production profile. Results distinguish actual FileBytes links and slice
+digests, retained original empty provenance, exact operational-state fingerprints,
+original and adapted journals, duplicate-preserving differences, complete
+rollback, source/asset immutability and exact owned cleanup. The fixed original
+record is captured as exact bytes with an independent digest; a tamper probe
+retains separate original and final on-disk bytes. Applied adaptation may
+recreate payload-address label-history events while retaining all original rows
+as evidence. The original journal is not restored in place. Reports default to
+ignored `docs/psx-local/phase-3-load-image-runs/`; the optional
+`REA_PSX_LOAD_IMAGE_PROOF_CAPTURE_DIR` must select an absolute ignored directory.
+The runner retains primary and cleanup failures and refuses success without
+verified empty lineage and owned-root removal. Full public acceptance remains a
+separate integration gate.
+
+Default `npm run verify:ghidra:psx-load-image` is the full auto-analysis lane:
+baseline, declared-registers-fill and trailing bytes each use public stdio MCP,
+public CLI and a separately authenticated direct provider session. Nine distinct
+run identities retain canonical profiles, exact owned source/snapshot and
+fixed-record coordinates, whole/slice digests, current observations and complete
+Evidence. The CLI's fixed records are captured during its owned lifetime before
+its automatic close and correlated with the final public Evidence; direct health
+records belong only to their separate authenticated session. Captured real
+observations are replayed through the production attestor with independent
+offset and source-digest mutations; replay is not actual live tampering. Public
+unknown register/fill facets remain unknown. Every close, independent
+source/code/asset postcheck and exact owned cleanup must pass.
+
+The measured Phase 3 macOS runs on Ghidra 12.1.4/Temurin 25 passed the nine-case
+R2 feasibility gate, nine full imports, nine controlled replay mismatches, and
+PSX/DOS/COM regressions. Full report `run-4LrkYH/report.json` under the load-image
+capture root has SHA-256
+`d9e2e2ee7860e579440547b7877d7883b0e4bf473a22a8005f2fbe0890a9b75f`;
+PSX policy regression `run-4cuGUQ/report.json` under
+`docs/psx-local/phase-3-import-regression-runs/` has SHA-256
+`af61f50d8ee7153e6daee166b07bc6fab30ba84c39ed119c08ddff5867519006`.
+Both retained unchanged inputs/assets, exact owned cleanup and empty verified
+lineage. The full report preserves nine distinct session identities and their
+fixed original-record authentication; fresh after-analysis journal observations
+remain separate from retained preparation journals. SP, zero-GP declaration
+agreement and uninitialized fill contents retain their measured unknowns.
+
+[Phase 3 results](../../../docs/active/phase-3-results.md) records the exact
+source/profile/report identities, earlier failed attempts, current source-runtime
+DOS/COM proofs and separate package checks. COM's native proof explicitly uses
+the source runtime, not a packaged artifact. Distribution checks do not establish
+real installed PSX/fresh-client behavior. Linux, patched game inputs, Phase 4
+instruction/delay-slot semantics and runtime correctness remain unverified.

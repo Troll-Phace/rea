@@ -516,14 +516,57 @@ fail before provider allocation. The DOS and COM real lanes check preserved
 launch behavior. Deterministic recording-provider tests verify missing/duplicate
 assets, handshake mutations, cancellation and snapshots separately.
 
-PSX load-image verification remains unsupported and function/instruction
-operations are gated pending Phase 4. This lane cannot establish source-backed
-provenance, delay-slot semantics, game behavior, installed-package operation or
+At the Phase 2 checkpoint PSX load-image verification was unsupported.
+Function/instruction operations remain gated pending Phase 4. The historical
+Phase 2 report does not establish source-backed provenance; the separate Phase 3
+lane below verifies the adapted static image. Neither lane proves
+delay-slot semantics, game behavior, installed-package operation or
 fresh-client discovery. Required Phase 2 host acceptance is macOS; Linux remains
 unverified until its own real lane runs. [Phase 2 results](active/phase-2-results.md)
 record the passing macOS matrix separately from static, simulated-boundary and
 package-integrity checks, alongside preserved failed attempts. The dynamic
 PSX startup diagnostic-truncation negative remains unverified under PSX-008.
+
+## PSX static load image — Phase 3 lane
+
+`npm run verify:ghidra:psx-load-image` accepts generated original synthetic
+fixtures only and requires the existing caller-supplied Ghidra/JDK. The
+`-- --stage feasibility` subset runs nine direct noanalysis cases: baseline,
+declared registers/fill, split mappings, duplicate journal history, preflight
+unsupported data, cancellation rollback, original-record tamper rollback,
+active-owner refusal and the actual production preScript followed by a read-only
+observer. This proves producer behavior and transaction completion, not public
+CLI/MCP acceptance. Cancellation/tamper must retain actual fault-time FileBytes
+and exact original state/journal/source restoration after final close. Cleanup
+alone cannot establish rollback.
+
+The complete lane separately exercises baseline, declared-register/fill and
+trailing-byte fixtures through public stdio MCP, CLI and authenticated direct
+provider sessions. Each has its own run identity. Direct fixed-file preparation
+evidence cannot be joined to a different public import merely by source digest.
+Captured current observations are replayed through the production attestor with
+independently changed source offsets and digests; these are labeled replay
+mutations, not live Program tampering. Focused boundary tests additionally cover
+strict startup records, SDK-converted schemas, all three result statuses,
+snapshot identity, cancellation and ownership.
+
+Reports retain source/snapshot and semantic profile identity, exact code/dist
+and probe fingerprints, selected installation assets and sanitized process
+arguments. Safe capture of the fixed original-evidence file runs before cleanup
+even if probe output is missing or partial. Capture, primary and cleanup errors
+remain distinct. All closes are attempted; uncertain roots remain owned and
+retained. Acceptance requires unchanged sources/assets, no retained resources
+and verified empty descendants. Failed reports remain immutable and incomplete
+facets stay unavailable.
+
+The [Phase 3 results](active/phase-3-results.md) record actual current coverage
+and failed attempts. Original-loader FileBytes remain absent; successful
+adaptation preserves operational state and complete original journal evidence,
+while explicitly reporting live journal recreation. Verified static coverage
+does not establish runtime behavior. Linux, patched AC3, MIPS query semantics
+and installed-package/fresh-client acceptance remain later gates. Real PSX
+import, DOS and COM regressions are required after integration; package integrity
+and deterministic tests do not substitute for real-provider proof.
 
 ## Apple Interface Builder archives
 

@@ -210,11 +210,12 @@ export const windowsP0Capabilities = (): readonly CapabilityDescriptor[] => {
   );
 };
 
-/** Phase 2 admits inventory observations; function semantics await Phase 4. */
+/** Static PSX image evidence is admitted; function semantics await Phase 4. */
 export const psxFunctionUnavailableReason =
   "PSX function/instruction analysis is deferred pending Phase 4 MIPS semantics.";
 export const psxImportLimitations = Object.freeze([
-  "PSX support uses loader defaults within KSEG0 2MB RAM. Inventory is observational; source-backed load-image coverage is unsupported.",
+  "PSX support uses loader defaults within KSEG0 2MB RAM. Load-image verification covers independently checked REA-adapted static payload and declared entry evidence; original-loader source lineage and runtime correctness remain unknown.",
+  "Original label history is retained as evidence. The adapted Program may contain newly generated label-history events from REA restoration; its original journal was not restored in place.",
   "GP/SP/fill runtime state is not established by startup agreement; absent context and uninitialized memory remain unknown.",
   `Provider-wide capabilities do not imply PSX execution support. Unavailable target operations: ${GHIDRA_FUNCTION_OPERATIONS.join(", ")}. ${psxFunctionUnavailableReason}`,
 ]);

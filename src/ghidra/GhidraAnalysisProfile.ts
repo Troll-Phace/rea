@@ -120,12 +120,13 @@ export const resolveGhidraAnalysisProfile = async (
             inspected.candidate.language_assets,
           ),
           psx_analyzer_classes: [...inspected.candidate.analyzer_classes],
-          psx_operation_scope: "inventory-observations-only-v1",
-          startup_agreement: "psx-observed-import-v1",
+          psx_operation_scope: "inventory-and-load-image-v1",
+          psx_source_provenance: "rea-psx-filebytes-rebind-v2",
+          psx_preparation_transaction: "exclusive-top-level-v1",
+          startup_agreement: "psx-observed-import-and-provenance-v3",
           instruction_flow_evidence: "unavailable-pending-psx-semantics-v1",
           unavailable_function_operations: [...GHIDRA_FUNCTION_OPERATIONS],
-          load_image_evidence:
-            "unsupported-with-observations-no-source-backed-coverage-v1",
+          load_image_evidence: "independent-psx-adapted-payload-entry-v2",
         }),
       });
     } catch (cause) {

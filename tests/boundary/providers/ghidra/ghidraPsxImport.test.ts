@@ -58,7 +58,7 @@ describe("PSX filesystem admission and immutable import boundary (simulated prov
     );
     if (!profile.ok) throw profile.error;
     expect(profile.value.profile?.parameters).toMatchObject({
-      psx_operation_scope: "inventory-observations-only-v1",
+      psx_operation_scope: "inventory-and-load-image-v1",
       psx_import: {
         supplied_loader_options: {},
         option_mode: "loader-defaults",

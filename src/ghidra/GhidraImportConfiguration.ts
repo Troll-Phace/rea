@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  psxLabelHistoryRowSchema,
+  psxLoadImageProvenanceSchema,
+} from "../domain/native/nativeLoadImage.js";
 
 const digest = z.string().regex(/^[a-f0-9]{64}$/u);
 const address = z.string().regex(/^0x(?:0|[1-9a-f][0-9a-f]*)$/u);
@@ -43,7 +47,8 @@ export const psxDeclarationsSchema = z
 /** Deterministic, provider-owned import expectation. Snapshot path is transport only. */
 export const psxImportCommitmentSchema = z
   .object({
-    schema_version: z.literal(1),
+    schema_version: z.literal(3),
+    source_provenance: z.literal("rea-psx-filebytes-rebind-v2"),
     policy: z.literal("psx-kseg0-2m-defaults-v1"),
     source_snapshot_path: text,
     source_sha256: digest,
@@ -102,7 +107,7 @@ const option = (argument: "-loader-ramStart" | "-loader-ramSize") =>
 /** Independent JVM observations at one analysis stage, with explicit correlation metadata. */
 export const psxImportObservationSchema = z
   .object({
-    schema_version: z.literal(1),
+    schema_version: z.literal(3),
     stage: z.enum(["before-analysis", "after-analysis"]),
     commitment: z
       .object({
@@ -111,6 +116,7 @@ export const psxImportObservationSchema = z
         source_sha256: digest,
       })
       .strict(),
+    provenance: psxLoadImageProvenanceSchema,
     observed: z
       .object({
         ghidra_version: text,
@@ -160,7 +166,7 @@ export type PsxImportObservation = Readonly<
 >;
 export const psxImportAgreementSchema = z
   .object({
-    schema_version: z.literal(1),
+    schema_version: z.literal(3),
     before_record_sha256: digest,
     before: psxImportObservationSchema.refine(
       (value) => value.stage === "before-analysis",
@@ -172,6 +178,22 @@ export const psxImportAgreementSchema = z
   .strict();
 export type PsxImportAgreement = Readonly<
   z.infer<typeof psxImportAgreementSchema>
+>;
+
+/** Exact fixed private file retained before preparation mutates its disposable Program. */
+export const psxOriginalEvidenceRecordSchema = z.strictObject({
+  schema_version: z.literal(1),
+  commitment: z.strictObject({
+    run_id: z.string().uuid(),
+    profile_digest: digest,
+    source_sha256: digest,
+  }),
+  state_sha256: digest,
+  operational_state_sha256: digest,
+  label_history: z.array(psxLabelHistoryRowSchema),
+});
+export type PsxOriginalEvidenceRecord = z.infer<
+  typeof psxOriginalEvidenceRecordSchema
 >;
 
 /** Internal startup expectation; transport observations keep their single wire shape. */
