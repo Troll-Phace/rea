@@ -1,4 +1,7 @@
+import { validateGhidraPsxLaunch } from "./GhidraPsxLoader.js";
 import { randomBytes, randomUUID } from "node:crypto";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import type { Socket } from "node:net";
 
 import { AnalysisError } from "../domain/analysisErrorBase.js";
@@ -390,7 +393,13 @@ export class GhidraClient {
         this.#options.targetSha256,
         { signal: deadline.signal, platform: this.#options.platform },
       );
-      this.#snapshotPath = snapshot.path;
+      // PSX observer identities use filesystem coordinates. Establish the
+      // owned snapshot coordinate once before descriptor/expectation creation.
+      // Original caller coordinates remain in options and diagnostics.
+      this.#snapshotPath =
+        this.#options.psxImport === undefined
+          ? snapshot.path
+          : realpathSync(snapshot.path);
       this.#targetAdmission = snapshot.admission;
     } catch (cause: unknown) {
       if (deadline.signal.aborted) return this.#startupInterrupted(deadline);
@@ -460,6 +469,35 @@ export class GhidraClient {
       startupTimeoutMs: this.#options.startupTimeoutMs,
     });
     if (!completed.ok) return this.#startupFailure(completed.error);
+    if (this.#options.psxImport !== undefined) {
+      try {
+        const checked = await validateGhidraPsxLaunch(
+          this.#options.psxImport.commitment,
+          this.#options.psxImport.installationRoot,
+          this.#options.providerVersion,
+          this.#snapshotPath,
+          deadline.signal,
+        );
+        if (!checked.ok)
+          return this.#startupFailure(
+            this.#failure(
+              "protocol",
+              "PSX installed resources changed during import",
+              checked.error,
+            ),
+          );
+      } catch (cause) {
+        return deadline.signal.aborted
+          ? this.#startupInterrupted(deadline)
+          : this.#startupFailure(
+              this.#failure(
+                "protocol",
+                "PSX post-import resource/source inspection failed",
+                cause,
+              ),
+            );
+      }
+    }
     await this.#lineage.observe(this.#launch);
     this.#requestQueue.reopen();
     return completed;
@@ -492,6 +530,62 @@ export class GhidraClient {
     const runId = this.#runId;
     if (runId === undefined)
       return err(this.#failure("protocol", "Ghidra run identity is missing"));
+    const psxExpected = this.#options.psxImport;
+    let psxBeforeRecordSha256: string | undefined;
+    if (psxExpected !== undefined) {
+      const snapshot = this.#process?.snapshot() ?? this.#processSnapshot;
+      const output = `${snapshot?.stdout.text ?? ""}\n${snapshot?.stderr.text ?? ""}`;
+      // Ghidra reports analysis completion before entering its serving postscript.
+      // Its final import-success report follows postscript return, so it cannot
+      // be a startup prerequisite. Bind the earlier report to our owned file.
+      const reports = [
+        ...output.matchAll(
+          /^(?:INFO\s+)?REPORT:\s*Analysis succeeded for file: (.+?)(?: \(HeadlessAnalyzer\))?[ \t]*$/gmu,
+        ),
+      ];
+      let reportMatchesSnapshot = false;
+      if (reports.length === 1 && this.#snapshotPath !== undefined) {
+        try {
+          const url = new URL(reports[0]![1]!);
+          reportMatchesSnapshot =
+            url.protocol === "file:" &&
+            realpathSync(fileURLToPath(url)) ===
+              realpathSync(this.#snapshotPath);
+        } catch {
+          /* A malformed/unowned report never establishes completion. */
+        }
+      }
+      if (
+        snapshot?.diagnosticTruncated === true ||
+        !reportMatchesSnapshot ||
+        /REPORT:\s*(?:Import failed|Analysis failed|Analysis timed out)/gu.test(
+          output,
+        )
+      )
+        return err(
+          this.#failure(
+            "protocol",
+            "PSX target-bound analysis completion report is missing, contradictory, or truncated",
+          ),
+        );
+      const markers = [
+        ...output.matchAll(
+          /REA_PSX_IMPORT_BEFORE_COMPLETE ([a-f0-9-]+) ([a-f0-9]{64})(?=\s|$)/gu,
+        ),
+      ];
+      if (
+        markers.length !== 1 ||
+        markers[0]![1] !== runId ||
+        this.#snapshotPath === undefined
+      )
+        return err(
+          this.#failure(
+            "protocol",
+            "PSX pre-analysis completion marker is missing or invalid",
+          ),
+        );
+      psxBeforeRecordSha256 = markers[0]![2]!;
+    }
     const parsed = parseGhidraSessionInfo(value, {
       runId,
       expectedReadOnly:
@@ -499,6 +593,21 @@ export class GhidraClient {
       providerVersion: this.#options.providerVersion,
       profileDigest: this.#options.profileDigest,
       targetSha256: this.#options.targetSha256,
+      ...(psxExpected === undefined
+        ? {}
+        : {
+            psxImport: {
+              ...psxExpected,
+              installationRoot:
+                this.#launch?.psxInstallationRoot ??
+                psxExpected.installationRoot,
+              commitment: {
+                ...psxExpected.commitment,
+                source_snapshot_path: this.#snapshotPath!,
+              },
+            },
+            psxBeforeRecordSha256: psxBeforeRecordSha256!,
+          }),
       ...(this.#targetAdmission === undefined
         ? {}
         : { targetAdmission: this.#targetAdmission }),

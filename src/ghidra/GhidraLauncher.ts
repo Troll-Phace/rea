@@ -6,7 +6,13 @@ import writeFileAtomic from "write-file-atomic";
 
 import { windowsPrivateRuntime } from "../windows/WindowsPrivateRuntime.js";
 
-import { AnalysisCancelledError } from "../domain/analysisErrorCore.js";
+import {
+  AnalysisCancelledError,
+  AnalysisArtifactChangedError,
+  AnalysisAccessDeniedError,
+} from "../domain/analysisErrorCore.js";
+import type { GhidraImportConfiguration } from "./GhidraImportConfiguration.js";
+import { validateGhidraPsxLaunch } from "./GhidraPsxLoader.js";
 import { err, ok, type Result } from "../domain/result.js";
 import {
   cleanupOwnedProcessGroup,
@@ -44,6 +50,7 @@ export type GhidraLaunch = ProviderProcessLaunch & {
   readonly projectRoot: string;
   readonly ghidraLogPath: string;
   readonly scriptLogPath: string;
+  readonly psxInstallationRoot?: string;
 };
 
 /** Provider-owned capability that starts one isolated headless analysis. */
@@ -51,7 +58,15 @@ export interface GhidraLauncher {
   launch(
     session: GhidraLaunchSession,
     options?: { readonly signal?: AbortSignal },
-  ): Promise<Result<GhidraLaunch, GhidraLaunchError | AnalysisCancelledError>>;
+  ): Promise<
+    Result<
+      GhidraLaunch,
+      | GhidraLaunchError
+      | AnalysisCancelledError
+      | AnalysisArtifactChangedError
+      | AnalysisAccessDeniedError
+    >
+  >;
 }
 
 /** Local launch failure retained as the cause of a provider-neutral error. */
@@ -82,9 +97,7 @@ export interface GhidraHeadlessLauncherOptions {
   readonly bridgeScriptPath: string;
   readonly platform?: NodeJS.Platform;
   readonly comSpec?: string;
-  /** Select the admitted 16-bit real-mode MZ import instead of auto-detection. */
-  readonly dosMz?: true;
-  readonly dosCom?: true;
+  readonly importConfiguration?: GhidraImportConfiguration;
   readonly analysisExtensions?: readonly GhidraExtension[];
   /** Spawn seam for provider-boundary lifecycle tests. */
   readonly spawnProcess?: typeof spawnOwnedProviderProcess;
@@ -103,13 +116,40 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
   async launch(
     session: GhidraLaunchSession,
     options: { readonly signal?: AbortSignal } = {},
-  ): Promise<Result<GhidraLaunch, GhidraLaunchError | AnalysisCancelledError>> {
+  ): Promise<
+    Result<
+      GhidraLaunch,
+      | GhidraLaunchError
+      | AnalysisCancelledError
+      | AnalysisArtifactChangedError
+      | AnalysisAccessDeniedError
+    >
+  > {
     if (isAborted(options.signal))
       return err(new AnalysisCancelledError("open_binary"));
     const paths = ghidraRuntimePaths(session.runtimeRoot);
     const platform = this.options.platform ?? process.platform;
     let started: SpawnedOwnedProviderProcess | undefined;
+    let psxInstallationRoot: string | undefined;
     try {
+      const configuration = this.options.importConfiguration ?? {
+        kind: "automatic",
+      };
+      if (configuration.kind === "psx") {
+        if (platform !== "darwin" && platform !== "linux")
+          throw new Error("PSX requires macOS/Linux");
+        if ((this.options.analysisExtensions?.length ?? 0) > 0)
+          throw new Error("PSX cannot combine configured NativeAOT extensions");
+        const checked = await validateGhidraPsxLaunch(
+          configuration.commitment,
+          dirname(dirname(this.options.analyzeHeadlessPath)),
+          session.providerVersion,
+          session.targetPath,
+          options.signal,
+        );
+        if (!checked.ok) throw checked.error;
+        psxInstallationRoot = checked.value.installation_root;
+      }
       await createGhidraRuntimeDirectories(paths, platform);
       const extensions = await snapshotGhidraExtensions(
         this.options.analysisExtensions ?? [],
@@ -125,6 +165,15 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
           target_sha256: session.targetSha256,
           provider_version: session.providerVersion,
           profile_digest: session.profileDigest,
+          ...(configuration.kind === "psx"
+            ? {
+                target_path: session.targetPath,
+                psx_import: {
+                  ...configuration.commitment,
+                  source_snapshot_path: session.targetPath,
+                },
+              }
+            : {}),
           ...(extensions.length === 0
             ? {}
             : { analysis_extensions: extensions }),
@@ -140,12 +189,7 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
         descriptorPath: paths.descriptorPath,
         ghidraLogPath: paths.ghidraLogPath,
         scriptLogPath: paths.scriptLogPath,
-        ...(this.options.dosCom === undefined
-          ? {}
-          : { dosCom: this.options.dosCom }),
-        ...(this.options.dosMz === undefined
-          ? {}
-          : { dosMz: this.options.dosMz }),
+        importConfiguration: configuration,
       });
       const scriptCommand = ghidraHeadlessCommand({
         environment: this.options.environment,
@@ -209,6 +253,9 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
             platform === "win32" ? "windows-job-object" : "posix-process-group",
           launcher: command.command,
           headless_script: this.options.analyzeHeadlessPath,
+          ...(configuration.kind === "psx"
+            ? { arguments: command.arguments }
+            : {}),
           created_at: new Date().toISOString(),
         })}\n`,
         platform,
@@ -216,11 +263,17 @@ export class GhidraHeadlessLauncher implements GhidraLauncher {
       if (isAborted(options.signal)) {
         throw new AnalysisCancelledError("open_binary");
       }
-      return ok(partialLaunch);
+      return ok({
+        ...partialLaunch,
+        ...(psxInstallationRoot === undefined ? {} : { psxInstallationRoot }),
+      });
     } catch (cause: unknown) {
       const primary = isAborted(options.signal)
         ? new AnalysisCancelledError("open_binary", { cause })
-        : new GhidraLaunchError("Ghidra headless launch failed", { cause });
+        : cause instanceof AnalysisArtifactChangedError ||
+            cause instanceof AnalysisAccessDeniedError
+          ? cause
+          : new GhidraLaunchError("Ghidra headless launch failed", { cause });
       if (started === undefined) return err(primary);
 
       let cleanupFailure: unknown;
@@ -364,8 +417,7 @@ export interface GhidraHeadlessArgumentOptions {
   readonly descriptorPath: string;
   readonly ghidraLogPath: string;
   readonly scriptLogPath: string;
-  readonly dosMz?: true;
-  readonly dosCom?: true;
+  readonly importConfiguration?: GhidraImportConfiguration;
 }
 
 /** Build the complete read-only headless invocation in deterministic order. */
@@ -376,7 +428,7 @@ export const ghidraHeadlessArguments = (
   "rea-project",
   "-import",
   options.targetPath,
-  ...(options.dosMz === true
+  ...(options.importConfiguration?.kind === "dos-mz"
     ? [
         "-loader",
         "MzLoader",
@@ -385,7 +437,7 @@ export const ghidraHeadlessArguments = (
         "-cspec",
         "default",
       ]
-    : options.dosCom === true
+    : options.importConfiguration?.kind === "dos-com"
       ? [
           "-loader",
           "BinaryLoader",
@@ -396,7 +448,16 @@ export const ghidraHeadlessArguments = (
           "-cspec",
           "default",
         ]
-      : []),
+      : options.importConfiguration?.kind === "psx"
+        ? [
+            "-loader",
+            "PsxLoader",
+            "-processor",
+            "PSX:LE:32:default",
+            "-cspec",
+            "default",
+          ]
+        : []),
   "-readOnly",
   "-deleteProject",
   "-log",
@@ -405,12 +466,18 @@ export const ghidraHeadlessArguments = (
   options.scriptLogPath,
   "-scriptPath",
   dirname(options.bridgeScriptPath),
-  ...(options.dosCom === true
+  ...(options.importConfiguration?.kind === "dos-com"
     ? [
         "-preScript",
         join(dirname(options.bridgeScriptPath), "ReaGhidraPrepareCom.java"),
       ]
-    : []),
+    : options.importConfiguration?.kind === "psx"
+      ? [
+          "-preScript",
+          join(dirname(options.bridgeScriptPath), "ReaGhidraPreparePsx.java"),
+          options.descriptorPath,
+        ]
+      : []),
   "-postScript",
   // Ghidra checks the caller's cwd before scriptPath for a basename. Select
   // the packaged source explicitly so unrelated entries cannot shadow it.

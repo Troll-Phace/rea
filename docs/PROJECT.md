@@ -2,7 +2,7 @@
 
 ## Purpose and scope
 
-Add trustworthy PS-X EXE support to REA's existing CLI/MCP Ghidra workflow. This is a feature batch in the Troll-Phace/rea fork, upstream morluto/rea. Default branch main; initial source baseline 7aa4d768, package 6.3.0. User authorized Phase 1 implementation with “begin”; completion follows the phase PR workflow, with concrete PR approval before merge. Later phases remain unimplemented and unauthorized.
+Add trustworthy PS-X EXE support to REA's existing CLI/MCP Ghidra workflow. This is a feature batch in the Troll-Phace/rea fork, upstream morluto/rea. Default branch main; initial source baseline 7aa4d768, package 6.3.0. User authorized Phase 1 implementation with “begin”; completion follows the phase PR workflow, with concrete PR approval before merge. Phase 1 is complete and merged through approved PR #1. The user authorized Phase 2 execution after review of its shared contract; Phase 2 technical acceptance and review pass; [PR #2](https://github.com/Troll-Phace/rea/pull/2) is open and required user merge approval remains pending. Phases 3–5 remain unimplemented and unauthorized.
 
 Repository: /Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea. Do not treat the parent AC3 workspace as this Git repository.
 
@@ -40,4 +40,4 @@ Agent routes match the published Codex config schema; actual project discovery r
 
 ## GitHub
 
-PR destination Troll-Phace/rea, never upstream by assumption. User selected offline issue tracking on 2026-10-09: docs/ISSUE_LEDGER.md is canonical, with stable PSX-NNN IDs. GitHub issue integration is intentionally disabled. Follow ISSUES.md for immediate local capture and evidence-based closure. Ledger first, relevant final-content checks, Conventional Commit, push, PR; user approval of concrete PR before merge. Scaffolding itself is uncommitted/local. Preserve original REA rules and generated-output exclusions.
+PR destination Troll-Phace/rea, never upstream by assumption. User selected offline issue tracking on 2026-10-09: docs/ISSUE_LEDGER.md is canonical, with stable PSX-NNN IDs. GitHub issue integration is intentionally disabled. Follow ISSUES.md for immediate local capture and evidence-based closure. Ledger first, relevant final-content checks, Conventional Commit, push, PR; user approval of concrete PR before merge. The requested harness and shared phase plans are versioned project documentation; scratch and raw evidence remain local and ignored. Preserve original REA rules and generated-output exclusions.

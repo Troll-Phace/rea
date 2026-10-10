@@ -1,9 +1,16 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { access, chmod, mkdir, writeFile } from "node:fs/promises";
+import {
+  access,
+  chmod,
+  mkdir,
+  realpath,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import pino from "pino";
@@ -21,6 +28,22 @@ import type { GhidraTransportKind } from "../../../../src/ghidra/GhidraTransport
 import { GHIDRA_SESSION_CAPABILITIES } from "../../../../src/ghidra/GhidraSessionValues.js";
 import { waitForExit as waitForChildExit } from "../../../support/process/processFixture.js";
 import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
+import {
+  createPsxInstallationFixture,
+  psxFixtureAgreement,
+  psxFixtureSha256,
+  psxImportBytes,
+} from "../../../fixtures/ghidraPsxImport.js";
+import {
+  createGhidraPsxCommitment,
+  inspectGhidraPsxLoader,
+  readGhidraPsxSource,
+} from "../../../../src/ghidra/GhidraPsxLoader.js";
+import type { PsxLoaderCandidate } from "../../../../src/ghidra/GhidraPsxLoader.js";
+import type {
+  PsxSelectedClass,
+  PsxImportCommitment,
+} from "../../../../src/ghidra/GhidraImportConfiguration.js";
 
 const fixturePath = fileURLToPath(
   new URL("../../../fixtures/fakeGhidra.mjs", import.meta.url),
@@ -745,6 +768,489 @@ it("preserves failed startup and retained Ghidra cleanup capabilities until a ve
   expect(cleanupAttempts).toBe(3);
   await expect(access(runtime)).rejects.toMatchObject({ code: "ENOENT" });
 });
+
+type PsxClientMutation = {
+  readonly path?: readonly string[];
+  readonly value?: unknown;
+  readonly marker?: "missing" | "wrong" | "duplicate";
+  readonly exitZero?: boolean;
+  readonly mutateAsset?: boolean;
+  readonly reportIdentity?: "canonical" | "escaped-symlink";
+  readonly metadataIdentity?: "escaped-symlink";
+  readonly analysisReport?:
+    | "missing"
+    | "failed"
+    | "import-failed"
+    | "timed-out"
+    | "other-target"
+    | "unbound"
+    | "duplicate"
+    | "terminal-only"
+    | "malformed"
+    | "non-file"
+    | "missing-file";
+};
+
+const psxSessionFixture = (
+  session: GhidraLaunchSession,
+  candidate: PsxLoaderCandidate,
+  commitment: PsxImportCommitment,
+  mutation?: PsxClientMutation,
+) => {
+  const selectedClasses: PsxSelectedClass[] = [
+    ...candidate.analyzer_classes.map((className) => ({
+      className,
+      role: "analyzer" as const,
+    })),
+    { className: "psx.PsxLoader", role: "loader" as const },
+  ]
+    .map(({ className, role }) => {
+      const relative =
+        className === "ghidra.app.plugin.core.analysis.MipsPreAnalyzer"
+          ? "Ghidra/Processors/MIPS/lib/MIPS.jar"
+          : candidate.loader.code_source_relative;
+      const asset = candidate.assets.find(
+        (value) => value.relative_path === relative,
+      );
+      if (asset === undefined)
+        throw new Error("Missing selected synthetic code source");
+      const url = pathToFileURL(
+        join(candidate.installation_root, relative),
+      ).href;
+      return {
+        class_name: className,
+        role,
+        code_source_url: url,
+        code_source_relative: relative,
+        code_source_sha256: asset.sha256,
+        class_resource_url: `jar:${url}!/${className.replaceAll(".", "/")}.class`,
+        enabled: role === "loader" ? null : true,
+      };
+    })
+    .sort((left, right) => (left.class_name < right.class_name ? -1 : 1));
+  const agreement = psxFixtureAgreement({
+    commitment: {
+      ...commitment,
+      source_snapshot_path: session.targetPath,
+    },
+    runId: session.runId,
+    profileDigest: session.profileDigest,
+    selectedClasses,
+    languageAssets: [...candidate.language_assets],
+  });
+  const info: Record<string, unknown> = {
+    name: "REA Ghidra bridge",
+    run_id: session.runId,
+    profile_digest: session.profileDigest,
+    provider: { id: "ghidra", version: "12.1.4" },
+    read_only: false,
+    analysis_complete: true,
+    analysis_timed_out: false,
+    capabilities: [...GHIDRA_SESSION_CAPABILITIES],
+    psx_import: agreement,
+    target: {
+      name: "synthetic PSX",
+      language_id: "PSX:LE:32:default",
+      compiler_spec_id: "default",
+      image_base: "0x80000000",
+      default_address_space: "ram",
+      sha256: session.targetSha256,
+    },
+  };
+  if (mutation?.path !== undefined) {
+    let record: object = info;
+    for (const key of mutation.path.slice(0, -1)) {
+      const value: unknown = Reflect.get(record, key);
+      if (typeof value !== "object" || value === null)
+        throw new Error(`Missing mutation path: ${key}`);
+      record = value;
+    }
+    const key = mutation.path.at(-1);
+    if (key === undefined) throw new Error("Empty mutation path");
+    if (mutation.value === undefined) Reflect.deleteProperty(record, key);
+    else Reflect.set(record, key, mutation.value);
+  }
+
+  return { agreement, info };
+};
+
+const psxAliasedMetadataAgreement = async (
+  session: GhidraLaunchSession,
+  fixtureRoot: string,
+  agreement: ReturnType<typeof psxSessionFixture>["agreement"],
+) => {
+  const snapshotIdentity = join(fixtureRoot, "observed snapshot %雪 alias.exe");
+  await symlink(session.targetPath, snapshotIdentity);
+  for (const stage of [agreement.before, agreement.after]) {
+    stage.observed.source.snapshot_path = snapshotIdentity;
+    stage.observed.program.executable_path = snapshotIdentity;
+  }
+  return {
+    ...agreement,
+    before_record_sha256: createHash("sha256")
+      .update(JSON.stringify(agreement.before))
+      .digest("hex"),
+  };
+};
+
+const producer = `
+  import { createServer } from 'node:net';
+  const input = JSON.parse(process.env.REA_PSX_TEST_PRODUCER);
+  if (input.exitZero) process.exit(0);
+  if (input.analysisReport) process.stdout.write(input.analysisReport + '\\n');
+  if (input.marker) process.stdout.write(input.marker + '\\n');
+  const server = createServer(socket => {
+    socket.setEncoding('utf8');
+    let pending = '';
+    socket.on('data', chunk => {
+      pending += chunk;
+      for (;;) {
+        const newline = pending.indexOf('\\n');
+        if (newline < 0) break;
+        const request = JSON.parse(pending.slice(0, newline));
+        pending = pending.slice(newline + 1);
+        process.send?.({ method: request.method });
+        if (request.token !== input.token) throw new Error('Authentication failed');
+        if (request.method === 'ping') socket.write(JSON.stringify({ id: request.id, ok: true, result: input.info }) + '\\n');
+        else if (request.method === 'shutdown') {
+          socket.end(JSON.stringify({ id: request.id, ok: true, result: { shutdown: true, project_ephemeral: true } }) + '\\n');
+          server.close(() => process.exit(0));
+        } else throw new Error('Unmodeled PSX producer request: ' + request.method);
+      }
+    });
+  });
+  server.listen(input.endpoint);
+`;
+const psxClient = async (mutation?: PsxClientMutation) => {
+  const fixture = await createPsxInstallationFixture();
+  const inspected = await inspectGhidraPsxLoader(
+    fixture.installationRoot,
+    "12.1.4",
+  );
+  if (inspected.status !== "available") throw new Error(inspected.reason);
+  const candidate = inspected.candidate;
+  const sha256 = psxFixtureSha256(psxImportBytes());
+  const header = await readGhidraPsxSource(fixture.source, sha256);
+  const commitment = createGhidraPsxCommitment(
+    header,
+    candidate,
+    fixture.source,
+    sha256,
+  );
+  let child: ChildProcess | undefined;
+  let runtime: string | undefined;
+  const requests: string[] = [];
+  const launcher: GhidraLauncher = {
+    launch: async (session) => {
+      runtime = session.runtimeRoot;
+      expect(session.targetPath).toBe(await realpath(session.targetPath));
+      const produced = psxSessionFixture(
+        session,
+        candidate,
+        commitment,
+        mutation,
+      );
+      let agreement = produced.agreement;
+      const info = produced.info;
+      if (mutation?.metadataIdentity !== undefined) {
+        agreement = await psxAliasedMetadataAgreement(
+          session,
+          fixture.root,
+          agreement,
+        );
+        info.psx_import = agreement;
+      }
+      let marker = `REA_PSX_IMPORT_BEFORE_COMPLETE ${session.runId} ${agreement.before_record_sha256}`;
+      if (mutation?.marker === "missing") marker = "";
+      if (mutation?.marker === "wrong")
+        marker = `REA_PSX_IMPORT_BEFORE_COMPLETE ${session.runId} ${"f".repeat(64)}`;
+      if (mutation?.marker === "duplicate") marker = `${marker}\n${marker}`;
+      if (mutation?.mutateAsset === true)
+        await writeFile(fixture.coreData, "asset changed while imported\n");
+      let reportedPath = session.targetPath;
+      if (mutation?.reportIdentity === "canonical")
+        reportedPath = await realpath(session.targetPath);
+      if (mutation?.reportIdentity === "escaped-symlink") {
+        reportedPath = join(fixture.root, "owned snapshot %雪 alias.exe");
+        await symlink(session.targetPath, reportedPath);
+      }
+      const analysisSuccess = `INFO  REPORT: Analysis succeeded for file: ${pathToFileURL(reportedPath).href} (HeadlessAnalyzer)`;
+      const analysisReports = {
+        missing: "",
+        failed: `${analysisSuccess}\nREPORT: Analysis failed`,
+        "import-failed": `${analysisSuccess}\nREPORT: Import failed`,
+        "timed-out": `${analysisSuccess}\nREPORT: Analysis timed out`,
+        "other-target": `REPORT: Analysis succeeded for file: ${pathToFileURL(fixture.source).href}`,
+        unbound: "REPORT: Analysis succeeded",
+        duplicate: `${analysisSuccess}\n${analysisSuccess}`,
+        "terminal-only": "REPORT: Import succeeded",
+        malformed: "REPORT: Analysis succeeded for file: file:///%QQ",
+        "non-file":
+          "REPORT: Analysis succeeded for file: https://example.invalid/target",
+        "missing-file": `REPORT: Analysis succeeded for file: ${pathToFileURL(join(fixture.root, "absent snapshot")).href}`,
+      };
+      child = spawn(process.execPath, ["--input-type=module", "-e", producer], {
+        stdio: ["ignore", "pipe", "pipe", "ipc"],
+        env: {
+          REA_PSX_TEST_PRODUCER: JSON.stringify({
+            endpoint: session.endpointPath,
+            token: session.token,
+            info,
+            marker,
+            exitZero: mutation?.exitZero ?? false,
+            analysisReport:
+              mutation?.analysisReport === undefined
+                ? analysisSuccess
+                : analysisReports[mutation.analysisReport],
+          }),
+        },
+      });
+      child.on("message", (value: unknown) => {
+        if (
+          typeof value === "object" &&
+          value !== null &&
+          "method" in value &&
+          typeof value.method === "string"
+        )
+          requests.push(value.method);
+      });
+      return ok({
+        process: child,
+        ownsProcessLifetime: true as const,
+        projectRoot: join(session.runtimeRoot, "project"),
+        ghidraLogPath: join(session.runtimeRoot, "ghidra.log"),
+        scriptLogPath: join(session.runtimeRoot, "script.log"),
+      });
+    },
+  };
+  const client = new GhidraClient({
+    launcher,
+    targetPath: fixture.source,
+    targetSha256: sha256,
+    providerVersion: "12.1.4",
+    profileDigest: PROFILE_DIGEST,
+    platform: "linux",
+    transport: "unix-socket",
+    startupTimeoutMs: 5_000,
+    psxImport: {
+      commitment,
+      installationRoot: fixture.installationRoot,
+      assets: candidate.assets,
+      languageAssets: candidate.language_assets,
+      analyzerClasses: candidate.analyzer_classes,
+    },
+  });
+  clients.push(client);
+  return { client, requests, runtime: () => runtime, child: () => child };
+};
+const observed = ["psx_import", "after", "observed"];
+const mutations: readonly [string, readonly string[], unknown][] = [
+  ["missing metadata", ["psx_import"], undefined],
+  ["wrong stage", ["psx_import", "before", "stage"], "after-analysis"],
+  ["observed Ghidra version", [...observed, "ghidra_version"], "0.0.0"],
+  [
+    "observed snapshot path",
+    [...observed, "source", "snapshot_path"],
+    "/tmp/unowned-target",
+  ],
+  ["observed source SHA", [...observed, "source", "sha256"], "e".repeat(64)],
+  ["observed source size", [...observed, "source", "file_bytes"], 4097],
+  [
+    "Program executable path",
+    [...observed, "program", "executable_path"],
+    "/tmp/unowned-target",
+  ],
+  [
+    "Program format",
+    [...observed, "program", "executable_format"],
+    "Raw Binary",
+  ],
+  [
+    "Program language",
+    [...observed, "program", "language_id"],
+    "MIPS:LE:32:default",
+  ],
+  ["Program compiler", [...observed, "program", "compiler_spec_id"], "other"],
+  ["Program base", [...observed, "program", "image_base"], "0xa0000000"],
+  ["Program space", [...observed, "program", "default_address_space"], "other"],
+  ["missing RAM property", [...observed, "program", "ram_size"], undefined],
+  ["Program RAM size", [...observed, "program", "ram_size"], 0x800000],
+  [
+    "Program entries",
+    [...observed, "program", "external_entries"],
+    ["0x80010004"],
+  ],
+  ["loader selector", [...observed, "loader_selector"], "BinaryLoader"],
+  ["loader class", [...observed, "loader_class"], "other.Loader"],
+  [
+    "advertised base value",
+    [...observed, "advertised_defaults", "ram_start", "value"],
+    "0xa0000000",
+  ],
+  [
+    "advertised option class",
+    [...observed, "advertised_defaults", "ram_size", "value_class"],
+    "java.lang.Integer",
+  ],
+  ["missing selected analyzers", [...observed, "selected_classes"], []],
+  ["missing selected language resources", [...observed, "language_assets"], []],
+  [
+    "fresh inventory SHA",
+    [...observed, "asset_inventory_digest"],
+    "e".repeat(64),
+  ],
+  [
+    "selected code source URL",
+    [...observed, "selected_classes", "2", "code_source_url"],
+    "file:///tmp/unowned.jar",
+  ],
+  [
+    "selected code source SHA",
+    [...observed, "selected_classes", "2", "code_source_sha256"],
+    "e".repeat(64),
+  ],
+  [
+    "class resource URL",
+    [...observed, "selected_classes", "2", "class_resource_url"],
+    "jar:file:///tmp/unowned.jar!/psx/PsxLoader.class",
+  ],
+  [
+    "loader enabled claim",
+    [...observed, "selected_classes", "2", "enabled"],
+    true,
+  ],
+  [
+    "selected language asset SHA",
+    [...observed, "language_assets", "0", "sha256"],
+    "e".repeat(64),
+  ],
+  ["analysis timeout", ["analysis_timed_out"], true],
+];
+
+describe.skipIf(process.platform === "win32")(
+  "PSX startup agreement over the owned socket (simulated Java producer)",
+  () => {
+    it("accepts producer-shaped startup agreement and awaits exact owned-root cleanup", async () => {
+      const fixture = await psxClient();
+      const started = await fixture.client.start();
+      if (!started.ok) throw started.error;
+      expect(started.value.psx_import?.after.observed.program.ram_size).toBe(
+        2097152,
+      );
+      await fixture.client.close();
+      await expect(access(fixture.runtime() ?? "")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      expect(await waitForExit(fixture.child())).toBe(true);
+      expect(fixture.requests).toEqual(["ping", "shutdown"]);
+    });
+    it.each(["canonical", "escaped-symlink"] as const)(
+      "accepts %s file URI only through the actual owned snapshot identity",
+      async (reportIdentity) => {
+        const fixture = await psxClient({ reportIdentity });
+        const started = await fixture.client.start();
+        if (!started.ok) throw started.error;
+        await fixture.client.close();
+        await expect(access(fixture.runtime() ?? "")).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+        expect(await waitForExit(fixture.child())).toBe(true);
+      },
+    );
+    it("requires canonical producer coordinates without repairing aliased metadata downstream", async () => {
+      const fixture = await psxClient({ metadataIdentity: "escaped-symlink" });
+      expect(await fixture.client.start()).toMatchObject({
+        ok: false,
+        error: { kind: "protocol" },
+      });
+      await expect(access(fixture.runtime() ?? "")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      expect(await waitForExit(fixture.child())).toBe(true);
+    });
+    it.each(mutations)(
+      "rejects %s while echoed source/profile commitments remain untouched",
+      async (_name, path, value) => {
+        const fixture = await psxClient({ path, value });
+        expect(await fixture.client.start()).toMatchObject({
+          ok: false,
+          error: { kind: "protocol" },
+        });
+        await expect(access(fixture.runtime() ?? "")).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+        expect(await waitForExit(fixture.child())).toBe(true);
+        expect(
+          fixture.requests.every(
+            (request) => request === "ping" || request === "shutdown",
+          ),
+        ).toBe(true);
+      },
+    );
+    it.each(["missing", "wrong", "duplicate"] as const)(
+      "rejects %s pre-analysis completion marker and cleans ownership",
+      async (marker) => {
+        const fixture = await psxClient({ marker });
+        expect(await fixture.client.start()).toMatchObject({
+          ok: false,
+          error: { kind: "protocol" },
+        });
+        await expect(access(fixture.runtime() ?? "")).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+        expect(await waitForExit(fixture.child())).toBe(true);
+      },
+    );
+    it("does not turn a zero process exit into import success", async () => {
+      const fixture = await psxClient({ exitZero: true });
+      expect(await fixture.client.start()).toMatchObject({
+        ok: false,
+        error: { kind: "process", diagnostics: { exit_code: 0 } },
+      });
+      await expect(access(fixture.runtime() ?? "")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      expect(await waitForExit(fixture.child())).toBe(true);
+    });
+    it.each([
+      "missing",
+      "failed",
+      "import-failed",
+      "timed-out",
+      "other-target",
+      "unbound",
+      "duplicate",
+      "terminal-only",
+      "malformed",
+      "non-file",
+      "missing-file",
+    ] as const)(
+      "refuses %s analysis report even with a valid marker and agreement",
+      async (analysisReport) => {
+        const fixture = await psxClient({ analysisReport });
+        expect(await fixture.client.start()).toMatchObject({
+          ok: false,
+          error: { kind: "protocol" },
+        });
+        await expect(access(fixture.runtime() ?? "")).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+        expect(await waitForExit(fixture.child())).toBe(true);
+      },
+    );
+    it("detects assets changed after launch even with an otherwise matching agreement", async () => {
+      const fixture = await psxClient({ mutateAsset: true });
+      expect(await fixture.client.start()).toMatchObject({
+        ok: false,
+        error: { kind: "protocol" },
+      });
+      await expect(access(fixture.runtime() ?? "")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      expect(await waitForExit(fixture.child())).toBe(true);
+    });
+  },
+);
 
 describe.skipIf(process.platform === "win32")(
   "Ghidra launcher rollback ownership",

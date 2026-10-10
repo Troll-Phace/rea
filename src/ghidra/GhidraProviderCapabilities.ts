@@ -209,3 +209,12 @@ export const windowsP0Capabilities = (): readonly CapabilityDescriptor[] => {
     }),
   );
 };
+
+/** Phase 2 admits inventory observations; function semantics await Phase 4. */
+export const psxFunctionUnavailableReason =
+  "PSX function/instruction analysis is deferred pending Phase 4 MIPS semantics.";
+export const psxImportLimitations = Object.freeze([
+  "PSX support uses loader defaults within KSEG0 2MB RAM. Inventory is observational; source-backed load-image coverage is unsupported.",
+  "GP/SP/fill runtime state is not established by startup agreement; absent context and uninitialized memory remain unknown.",
+  `Provider-wide capabilities do not imply PSX execution support. Unavailable target operations: ${GHIDRA_FUNCTION_OPERATIONS.join(", ")}. ${psxFunctionUnavailableReason}`,
+]);

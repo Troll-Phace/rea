@@ -1,3 +1,4 @@
+import type { GhidraPsxStartupExpectation } from "./GhidraImportConfiguration.js";
 import type { Logger } from "pino";
 import type { Result } from "../domain/result.js";
 import type { GhidraLauncher } from "./GhidraLauncher.js";
@@ -41,6 +42,7 @@ export interface GhidraClientOptions {
   readonly transport?: GhidraTransportKind;
   readonly providerVersion: string;
   readonly profileDigest: string;
+  readonly psxImport?: GhidraPsxStartupExpectation;
   readonly expectedLanguageId?: string;
   readonly expectedCompilerSpecId?: string;
   readonly startupTimeoutMs?: number;

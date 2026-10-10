@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { createTestTempDirectory } from "../../../fixtures/temporaryDirectory.js";
 import { createGhidraTestRuntime } from "../../../fixtures/ghidraRuntime.js";
+import { psxFixtureCommitment } from "../../../fixtures/ghidraPsxImport.js";
 import type { PrivateRuntimeRoot } from "../../../../src/process/PrivateRuntimeRoot.js";
 
 import {
@@ -95,7 +96,7 @@ describe("Ghidra COM loader", () => {
       descriptorPath: "/tmp/session.json",
       ghidraLogPath: "/tmp/ghidra.log",
       scriptLogPath: "/tmp/script.log",
-      dosCom: true,
+      importConfiguration: { kind: "dos-com" },
     });
     expectOptions(arguments_, [
       ["-loader", "BinaryLoader"],
@@ -113,6 +114,39 @@ describe("Ghidra COM loader", () => {
   });
 });
 
+describe("Ghidra PSX loader arguments", () => {
+  it("selects PSX explicitly and omits both RAM options before the packaged observer", () => {
+    const arguments_ = ghidraHeadlessArguments({
+      projectRoot: "/tmp/project 雪",
+      targetPath: "/tmp/source PSX/target",
+      bridgeScriptPath: "/package with spaces/bridge/ReaGhidraBridge.java",
+      descriptorPath: "/tmp/session.json",
+      ghidraLogPath: "/tmp/ghidra.log",
+      scriptLogPath: "/tmp/script.log",
+      importConfiguration: { kind: "psx", commitment: psxFixtureCommitment() },
+    });
+    expectOptions(arguments_, [
+      ["-loader", "PsxLoader"],
+      ["-processor", "PSX:LE:32:default"],
+      ["-cspec", "default"],
+      ["-import", "/tmp/source PSX/target"],
+    ]);
+    expect(arguments_.filter((value) => value === "-loader")).toHaveLength(1);
+    expect(
+      arguments_.some((value) => /^-loader-ram(?:Start|Size)/u.test(value)),
+    ).toBe(false);
+    const prepare = arguments_.indexOf("-preScript");
+    expect(arguments_.slice(prepare, prepare + 3)).toEqual([
+      "-preScript",
+      "/package with spaces/bridge/ReaGhidraPreparePsx.java",
+      "/tmp/session.json",
+    ]);
+    expect(prepare).toBeLessThan(arguments_.indexOf("-postScript"));
+    expect(arguments_).toContain("-readOnly");
+    expect(arguments_).toContain("-deleteProject");
+  });
+});
+
 describe("Ghidra headless launcher", () => {
   it("forces the admitted real-mode language and loader for DOS MZ", () => {
     const arguments_ = ghidraHeadlessArguments({
@@ -122,7 +156,7 @@ describe("Ghidra headless launcher", () => {
       descriptorPath: "/tmp/session.json",
       ghidraLogPath: "/tmp/ghidra.log",
       scriptLogPath: "/tmp/script.log",
-      dosMz: true,
+      importConfiguration: { kind: "dos-mz" },
     });
     expectOptions(arguments_, [
       ["-loader", "MzLoader"],

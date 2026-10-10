@@ -29,6 +29,7 @@ import {
   type GhidraInstallationHost,
   type GhidraInstallationInspection,
 } from "./GhidraInstallation.js";
+import type { GhidraPsxInspectionHost } from "./GhidraPsxLoader.js";
 import { resolveGhidraAnalysisProfile } from "./GhidraAnalysisProfile.js";
 import { resolveGhidraExtensions } from "./extensions/GhidraExtensions.js";
 import {
@@ -61,6 +62,7 @@ export class GhidraProvider implements AnalysisProviderCandidate {
     private readonly installationHost?: GhidraInstallationHost,
     private readonly clientFactory: GhidraProviderClientFactory = (options) =>
       new GhidraClient(options),
+    private readonly psxInspectionHost?: GhidraPsxInspectionHost,
   ) {
     this.environment = snapshotEnvironment(
       environment,
@@ -133,14 +135,31 @@ export class GhidraProvider implements AnalysisProviderCandidate {
         reason: `Ghidra v1 imports executable targets, not ${target.kind} targets.`,
         diagnostics,
       };
-    if (target.format === "ps-x-exe")
-      return {
-        status: "unsupported",
-        code: "target_format_unsupported",
-        reason:
-          "PS-X EXE is recognized, but PSX analysis is not supported by this REA provider.",
-        diagnostics,
+    if (target.format === "ps-x-exe") {
+      const psxDiagnostics = {
+        ...diagnostics,
+        psx_loader: {
+          status: "profile inspection pending",
+          reason:
+            "Complete installed-resource and source policy inspection occurs before import.",
+        },
       };
+      return ["darwin", "linux"].includes(hostPlatform) &&
+        target.architecture === "mips"
+        ? {
+            status: "supported",
+            code: null,
+            reason: null,
+            diagnostics: psxDiagnostics,
+          }
+        : {
+            status: "unsupported",
+            code: "target_format_unsupported",
+            reason:
+              "PSX imports require macOS/Linux and PS-X EXE MIPS identity.",
+            diagnostics: psxDiagnostics,
+          };
+    }
     if (hostPlatform === "win32")
       return inspectWindowsP0TargetSupport(target, diagnostics);
     if (target.format === "mach-o" && target.availableArchitectures.length > 1)
@@ -177,6 +196,7 @@ export class GhidraProvider implements AnalysisProviderCandidate {
       GHIDRA_PROVIDER_IDENTITY,
       installation,
       options?.signal,
+      this.psxInspectionHost,
     );
     if (!resolved.ok || resolved.value.profile === null) return resolved;
     const extensions = await resolveGhidraExtensions(

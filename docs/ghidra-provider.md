@@ -32,6 +32,37 @@ not equivalence with another engine's pseudocode or analysis database.
 | Search           | Literal and Java-regex searches scan the complete immutable inventory and return all matching entries inline. Search waits for a reply or caller cancellation; there are no caller-supplied offsets or result-count limits.                                                                     |
 | Analysis state   | The socket is exposed only after default auto-analysis completes. Established operations wait for their reply or caller cancellation; there is no fixed response-size ceiling.                                                                                                                  |
 
+## PSX Phase 2 import boundary
+
+The [shared execution contract](active/phase-2-plan.md) defines an initial
+macOS/Linux implementation policy for PS-X EXE import. Admission requires a
+nonempty aligned payload and complete entry instruction in the KSEG0 2 MiB RAM
+bank, disjoint in-bank fill and zero separate-data declarations. Addresses and
+raw GP/stack declarations remain unchanged. Layouts requiring RAM overrides are
+unsupported because the installed loader's option transport fails.
+
+The production configuration selects `PsxLoader`, `PSX:LE:32:default` and
+compiler `default`, omitting both RAM arguments. Target-specific inspection is
+separate from ordinary Ghidra availability. The profile binds installation
+code/data fingerprints, policy and import semantics. A before-analysis observer
+and authenticated after-analysis handshake must agree on source, selected
+loader/assets, advertised defaults and effective Program facts. Startup also
+requires a target-bound analysis-success report and correlated observer marker;
+the terminal import report follows the serving postScript. The owned PSX
+snapshot coordinate is canonicalized before transport. A zero process exit
+alone cannot establish import success.
+
+This phase admits inventory observations. PSX function analysis, instruction
+queries, call-target analysis and annotations are unavailable until Phase 4.
+`inspect_native_load_image` retains measured observations with `unsupported`
+verification; matching bytes cannot establish original source offsets.
+Missing SP, uninitialized fill and empty FileBytes remain explicit limitations.
+The [Phase 2 results](active/phase-2-results.md) record nine real macOS imports
+on Ghidra 12.1.4/Temurin 25.0.4.1 across three generated fixtures and four
+pre-allocation policy refusals, with source/asset preservation and verified
+cleanup. Linux remains unverified. PSX runtime behavior and complete
+packaged-provider support remain later gates.
+
 ## Admitted function-analysis semantics
 
 | Concern                 | Ghidra contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
