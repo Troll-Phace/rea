@@ -369,6 +369,21 @@ const ghidraFunctionInstructionWindow = functionInstructionWindowSchema
   .extend({ procedure: procedureIdentity })
   .strict();
 
+const ghidraNativeInstruction = nativeInstructionSchema.superRefine(
+  (value, context) => {
+    if (
+      value.delay_slots?.addresses?.some(
+        (address) => !ghidraCanonicalAddressSchema.safeParse(address).success,
+      )
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["delay_slots", "addresses"],
+        message: "Ghidra delay-slot evidence contains a non-canonical address",
+      });
+  },
+);
+
 const resultSchemas = {
   annotate_native_function: nativeFunctionAnnotationsSchema.safeExtend({
     dossier: ghidraFunctionDossier,
@@ -380,7 +395,7 @@ const resultSchemas = {
   procedure_info: procedureInfo,
   procedure_pseudo_code: z.string().nullable(),
   read_function_instructions: ghidraFunctionInstructionWindow,
-  inspect_native_instruction: nativeInstructionSchema,
+  inspect_native_instruction: ghidraNativeInstruction,
   inspect_native_data_type: nativeDataTypeSchema,
   resolve_native_call_targets: nativeCallTargetsSchema,
   procedure_references: procedureReferences,

@@ -1,18 +1,20 @@
 # PSX issue ledger
 
-Canonical offline ledger. Batch psx-support-2026-10. Next ID: PSX-009.
-No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR #1; PSX-001 is closed. Phase 2 is complete through approved and verified [PR #2](https://github.com/Troll-Phace/rea/pull/2); PSX-002 is closed; PSX-006 is closed by the verified default-only production policy. Phase 3 is complete through approved [PR #3](https://github.com/Troll-Phace/rea/pull/3); PSX-003 is closed. PSX-007 is closed by measured adapted provenance and mutation evidence; Phases 4–5 remain planned and unauthorized.
+Canonical offline ledger. Batch psx-support-2026-10. Next ID: PSX-011.
+No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR #1; PSX-001 is closed. Phase 2 is complete through approved and verified [PR #2](https://github.com/Troll-Phace/rea/pull/2); PSX-002 is closed; PSX-006 is closed by the verified default-only production policy. Phase 3 is complete through approved [PR #3](https://github.com/Troll-Phace/rea/pull/3); PSX-003 is closed. PSX-007 is closed by measured adapted provenance and mutation evidence; Phase 4 technical acceptance and bounded review passed; approved delivery remains pending and PSX-009 is closed. Phase 5 remains planned and unauthorized.
 
-| ID      | Type    | Severity | Status | Phase   | Title                                               |
-| ------- | ------- | -------- | ------ | ------- | --------------------------------------------------- |
-| PSX-001 | feature | high     | closed | 1       | Format and loader contract                          |
-| PSX-002 | feature | high     | closed | 2       | Deterministic Ghidra PSX import                     |
-| PSX-003 | feature | high     | closed | 3       | Independent memory and entry evidence               |
-| PSX-004 | feature | medium   | open   | 4       | MIPS queries and public contract parity             |
-| PSX-005 | test    | high     | open   | 5       | Real-provider, package and local acceptance         |
-| PSX-006 | bug     | high     | closed | 2       | Installed PSX RAM option value-class mismatch       |
-| PSX-007 | feature | high     | closed | 3       | Installed PSX loader lacks original file provenance |
-| PSX-008 | test    | low      | open   | Backlog | PSX startup diagnostic truncation coverage gap      |
+| ID      | Type    | Severity | Status      | Phase   | Title                                                 |
+| ------- | ------- | -------- | ----------- | ------- | ----------------------------------------------------- |
+| PSX-001 | feature | high     | closed      | 1       | Format and loader contract                            |
+| PSX-002 | feature | high     | closed      | 2       | Deterministic Ghidra PSX import                       |
+| PSX-003 | feature | high     | closed      | 3       | Independent memory and entry evidence                 |
+| PSX-004 | feature | medium   | in-progress | 4       | MIPS queries and public contract parity               |
+| PSX-005 | test    | high     | open        | 5       | Real-provider, package and local acceptance           |
+| PSX-006 | bug     | high     | closed      | 2       | Installed PSX RAM option value-class mismatch         |
+| PSX-007 | feature | high     | closed      | 3       | Installed PSX loader lacks original file provenance   |
+| PSX-008 | test    | low      | open        | Backlog | PSX startup diagnostic truncation coverage gap        |
+| PSX-009 | bug     | medium   | closed      | 4       | Load-image snapshot cache requires forbidden document |
+| PSX-010 | test    | low      | open        | Backlog | Mach-O named non-entry-label native coverage          |
 
 ## PSX-001 — Format and loader contract
 
@@ -71,19 +73,20 @@ No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR 
 
 ## PSX-004 — MIPS queries and public contract parity
 
-- Status: open; type: feature; severity: medium; phase: 4.
+- Status: in-progress; type: feature; severity: medium; phase: 4.
 - Owner: orchestrator, with task delegation per PLAN.md.
-- Evidence: planned later-phase work; Phase 3 now verifies the adapted static payload and entry for the default-only import subset. Function/instruction semantics and later-phase acceptance remain unperformed. No implementation of this later phase is claimed.
+- Evidence: Astra/low saved the detailed [Phase 4 contract](active/phase-4-plan.md) on 2026-10-10 against clean `main` at `af591550cfe665caaa224df7b1f20d6cecd9196b`, matching local `origin/main` and the live remote main reference. The orchestrator read back and reviewed task ownership, delay-slot/RETURN evidence contracts, explicit query admission/refusals, semantic profile invalidation, CLI/MCP/snapshot and SDK-converted schema checks, and bounded real synthetic gates. Phase 3 verifies the adapted static payload and entry for the default-only import subset. User authorized execution on 2026-10-10; P4-00 prerequisite/branch checkpoint passed, P4-11/P4-12 are starting on `codex/psx-phase-4`. P4-11 source checks passed 89 tests, typecheck/Java compile/build; generic boundary/schema regressions passed 117 tests. Actual G1 report `run-IWtgp1` (SHA-256 `e8d6924a13aa324e2483a2d1a26f62f9acd184b3cf97e3c3ce135ae858709008`) preserves RETURN/TERMINATOR with computed false versus oracle true at `0x80010044`, stable source/assets and complete cleanup. The bounded saved P4-R1 was read back and reviewed: only two fixed return oracle flags change, with stronger TERMINATOR/RETURN assertions and mutation coverage; production/profile/fixture semantics remain unchanged. Fresh R1 G1 passed all fixed decoder/function/data-reference assertions through 52 operations in `run-6aUoxr` (SHA-256 `203aa0c4451cd0eff4b736a9928db0e8e818c5d7db87082999cd20f797ab9cdd`), with unchanged source/assets/code and complete owned cleanup. G2 and final parity/regression gates remain pending. The required host-native regression failed the existing distinct interior-label fixture invariant (both addresses `0x1000003c0`); failed log SHA-256 `ff7415de94a592836eff52a22f4279cfe61893150e3563260423f68d6e5b2bf2` is preserved and bounded R2 fixture-producer planning is underway; R2 compiled layout passed but full host-native rerun then accepted `_rea_interior` as a procedure name (log SHA-256 `c7ca7d653fa47e0725636e82deb452687d34108403126aa9b268b438d364c90c`); accepted identity/body remains uncaptured and bounded R4 planning is underway. No final host success/lineage attestation is claimed; application/public/native acceptance and bounded review remain pending; delivery proceeds through a reviewable PR, with concrete merge approval required.
+- Current checkpoint: reviewed R3 cache correction passes 37 policy tests and exact four-family SDK zero-query replay; six source suites pass 136 tests, earlier six boundaries pass 54 and fresh R5 verifier passes 21. G2 now passes 79 native operations in `run-TqBh01` (SHA-256 `e03ef660718ec01d5477a8bf7bd21a9e80a6298fd3b93910ff204d67139d827b`) with immutable sources/assets and verified owned cleanup. Host baseline measured the named label as a separate FunctionManager entry; R6 local-symbol candidate retains that split and fails focused acceptance. Final load-image report `run-xmt81j` failed repository stability because orchestrator documents changed during collection, with all semantic cases and cleanup preserved. Full frozen load-image rerun passed in `run-ytJDIh` (SHA-256 `1db5ece6b716e680700db2cb4ec218af1bb0632477802f75af5bf8ffb8430a05`) with stable identities and verified cleanup. R7 alternate-entry metadata candidate failed before native allocation. Reviewed R8 passed independent object metadata, 30 diagnostic checks, 25 focused native operations (`run-P5XqPR`, SHA-256 `d272637d4962fc3ed226085c907a57ab832fe10b6aa1ce59cf9708c943293855`) and the full host suite (log SHA-256 `738180ef6b712484873c0f38221004f8c1a19500742aca08f0e893b624408d17`), retaining every public assertion and explicitly leaving Mach-O non-entry-label coverage unverified. All required native gates, final configured checks and the single bounded close review passed. PSX-009 is closed on its technical criteria; PSX-004 remains in progress pending approved delivery.
 - Dependencies: Phase 3 accepted.
 - Done-criteria: Delay-slot and reference evidence truthful; CLI/MCP and snapshots preserve PSX identities; Phase 4 checks and delivery satisfied.
-- Tasks and exact verification contract: corresponding phase in PLAN.md.
+- Tasks and exact verification contract: [shared Phase 4 plan](active/phase-4-plan.md), P4-00/P4-11/P4-12/P4-21/P4-22/P4-90; overview in PLAN.md. G1 and full G2 passed; final six-boundary suite passes 60 tests. Full public PSX operation/installed-package/game lanes remain PSX-005. PSX-008 stays deferred.
 - Closure evidence/date/commit/PR: none.
 
 ## PSX-005 — Real-provider, package and local acceptance
 
 - Status: open; type: test; severity: high; phase: 5.
 - Owner: orchestrator, with task delegation per PLAN.md.
-- Evidence: planned later-phase work; Phase 3 now verifies the adapted static payload and entry for the default-only import subset. Function/instruction semantics and later-phase acceptance remain unperformed. No implementation of this later phase is claimed.
+- Evidence: planned later-phase work; Phase 3 now verifies the adapted static payload and entry for the default-only import subset. Phase 4 now verifies synthetic direct-provider MIPS instruction/function semantics; real public PSX CLI/MCP journeys and later-phase acceptance remain unperformed. No implementation of this later phase is claimed.
 - Dependencies: Phase 4 accepted.
 - Done-criteria: Synthetic public CLI/MCP lanes, declared-host coverage, local patched-AC3 smoke, package/docs and final delivery gates satisfied; missing coverage explicitly blocks corresponding claims.
 - Tasks and exact verification contract: corresponding phase in PLAN.md.
@@ -96,4 +99,22 @@ No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR 
 - Impact: dynamic PSX-specific truncation rejection is unverified. Normal complete-stream startup and the other missing/contradictory report failures remain independently tested; no observed production failure is attributed to truncation.
 - Disposition: nonblocking deferred coverage work. Preserve complete-stream behavior and the fail-closed guard; do not invent an arbitrary production capture cap only to activate a test.
 - Done-criteria: add a meaningful production-boundary injection or independently justified capture policy that exercises the PSX startup rejection for truncated diagnostics, with retained cleanup and non-PSX regression coverage. Record the exact passing test and clarify its relationship to process-level capacity coverage.
+- Closure evidence/date/commit/PR: none.
+
+## PSX-009 — Load-image snapshot cache requires forbidden document
+
+- Status: closed; type: bug; severity: medium; phase: 4; owner: orchestrator/cache implementor.
+- Evidence: P4-21 actual SDK session snapshot test retained image Evidence but omitted its query-cache entry. `src/application/binary/AnalysisSnapshotCache.ts` derives document scope from every official name except two; the named `inspect_native_load_image` input is strict empty. Independent compiled production-policy proof `docs/psx-local/phase-4-regressions/load-image-cache-before-r3.json`, SHA-256 `31fccb828417ec74af630f5753ea654af6f1145a805611301734535e5c7136fc`, confirms legal empty input is not cacheable, while an illegal document-bearing input would be cacheable. No provider query, native session or mutation was required for this reproduction.
+- Impact: public load-image queries cannot satisfy same-identity zero-query snapshot replay despite retained Evidence; adding a document violates the advertised contract.
+- Disposition: blocks the Phase 4 saved replay criterion. Bounded P4-R3 was saved, read back and reviewed; backend owns only application cache policy/tests and test-engineer owns complete four-family SDK replay. No relaxed image acceptance is authorized by this record. Other immutable/document/cursor/effect guards must remain intact.
+- Done-criteria: derive document scope from the named contract's actual document field, preserve existing live/mutation/stateful/cursor guards, pass distinct policy tests and real SDK session four-family zero-query replay with retained Evidence/unknowns and atomic stale-identity rejection. Required affected regression/package/static/document checks and bounded close review must pass against final relevant source.
+- Closure evidence/date/commit/PR: closed 2026-10-10. Actual named-contract scope and 37 policy tests pass; all four SDK query families replay with zero provider dispatch and stale identities fail atomically. Fresh six-boundary suite passes 60 tests; unchanged source suites pass 136 and generic regressions 117. Post-R3 PSX import/load-image, DOS/COM and final host lanes pass with immutable identities and verified cleanup. Package integrity/normal dry run, six-task static check, docs checks and the single bounded close review pass. See [Phase 4 results](active/phase-4-results.md) for commands, report digests and limits. Verified on `codex/psx-phase-4`; delivery commit/PR is pending and does not prevent this technical bug closure.
+
+## PSX-010 — Mach-O named non-entry-label native coverage
+
+- Status: open; type: test; severity: low; phase: Backlog; owner: orchestrator/test engineer.
+- Evidence: the original host alias fixture placed its supposed interior label at the entry. R2 fixed address distinctness but Ghidra created a separate function there; R6 local-symbol candidate still split (`run-35UEBp/report.json`, SHA-256 `04bd7ca6bee97bebf64d30fcdeded74a02e91fb73aa02af474758b71a4b9ee24`). R7 object alternate-entry metadata did not remove the linked function-start declaration (`preflight-r7-candidate-gMiqYa/report.json`, SHA-256 `daf239d85baac25af357dee91b357bebfb070f88028b6031f50673c7d0912385`). These observations agree with procedure entry-name semantics and do not demonstrate a product resolver defect.
+- Impact: the full host suite now exercises this analyst question with an auxiliary AArch64 ELF relocatable fixture under reviewed P4-R8. Imported entry aliases, interior-name rejection, numeric containment, annotation and CLI/MCP xrefs all pass; main Mach-O controls pass separately. Mach-O imported named non-entry rejection itself remains unverified.
+- Disposition: nonblocking deferred coverage gap under the explicit R8 scope correction. Preserve the working ELF case and ordinary Mach-O controls; no additional fixture variants or product changes in Phase 4. Distinct from PSX-005's later public PSX/host/package/game acceptance and PSX-008's startup diagnostic gap.
+- Done-criteria: source-ground a Mach-O fixture representation that imports an exact named decoded instruction inside an observed canonical body without making it a separate FunctionManager entry; independently verify emitted symbol/function metadata, then public name rejection versus explicit numeric containment with entry aliases/call/data/xrefs intact, unchanged source identity, exact cleanup and empty verified lineage. Do not disable analyzers or change production selection semantics merely to make the fixture pass.
 - Closure evidence/date/commit/PR: none.

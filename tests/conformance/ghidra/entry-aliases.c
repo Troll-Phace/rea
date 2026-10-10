@@ -9,8 +9,8 @@ volatile int rea_xrefs_data = 17;
 __attribute__((used)) volatile int rea_xrefs_unreferenced = 41;
 
 __attribute__((noinline, used)) int rea_alias_target(void) {
-  __asm__ volatile(".globl " REA_SYMBOL("rea_interior") "\n"
-                   REA_SYMBOL("rea_interior") ":");
+  // Emit a prefix so the label is interior even without a compiler prologue.
+  __asm__ volatile("nop\n" REA_SYMBOL("rea_interior") ":");
   return rea_xrefs_data;
 }
 

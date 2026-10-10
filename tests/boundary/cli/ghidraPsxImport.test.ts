@@ -18,7 +18,7 @@ import {
 } from "../../fixtures/ghidraPsxImport.js";
 
 it.each(["verified", "mismatch", "unsupported"] as const)(
-  "projects synthetic PSX inventory, %s provenance and function refusals through actual CLI commands",
+  "projects synthetic PSX inventory, %s provenance, static reads and annotation refusal through actual CLI commands",
   async (status) => {
     const fixture = await createPsxInstallationFixture();
     const recording = createPsxRecordingProvider(fixture, {
@@ -78,7 +78,9 @@ it.each(["verified", "mismatch", "unsupported"] as const)(
         normalized_result: { address: "0x80010000", bytes_hex: "07000224" },
         provider: { id: "ghidra" },
         analysis_profile: {
-          parameters: { psx_operation_scope: "inventory-and-load-image-v1" },
+          parameters: {
+            psx_operation_scope: "inventory-load-image-and-static-functions-v1",
+          },
         },
       });
       const loadImage = await run([
@@ -103,7 +105,9 @@ it.each(["verified", "mismatch", "unsupported"] as const)(
           digest: { sha256: expect.stringMatching(/^[a-f0-9]{64}$/u) },
         },
         analysis_profile: {
-          parameters: { psx_operation_scope: "inventory-and-load-image-v1" },
+          parameters: {
+            psx_operation_scope: "inventory-load-image-and-static-functions-v1",
+          },
         },
       });
       if (status === "mismatch")
@@ -126,24 +130,32 @@ it.each(["verified", "mismatch", "unsupported"] as const)(
       for (const args of [
         ["instructions", fixture.source, "0x80010000"],
         ["decompile", fixture.source, "0x80010000"],
-        [
-          "annotate-native-function",
-          fixture.source,
-          "0x80010000",
-          "--name",
-          "renamed",
-        ],
       ]) {
-        const rejected = await run(args);
-        expect(rejected.exit).toBe(1);
-        expect(rejected.output).toMatchObject({
-          code: "capability_unavailable",
-          details: { reason: expect.stringMatching(/PSX.*Phase 4/u) },
+        const admitted = await run(args);
+        expect(admitted.exit).toBe(0);
+        expect(parseEvidence(admitted.output)).toMatchObject({
+          provider: { id: "ghidra" },
+          subject: { format: "ps-x-exe" },
         });
       }
+      const rejected = await run([
+        "annotate-native-function",
+        fixture.source,
+        "0x80010000",
+        "--name",
+        "renamed",
+      ]);
+      expect(rejected.exit).toBe(1);
+      expect(rejected.output).toMatchObject({
+        code: "capability_unavailable",
+        details: { reason: expect.stringMatching(/PSX observational scope/u) },
+      });
+      expect(rejected.output).not.toHaveProperty("evidence_id");
       expect(recording.calls).toEqual([
         "read_bytes",
         "inspect_native_load_image",
+        "read_function_instructions",
+        "procedure_pseudo_code",
       ]);
       expect(recording.counts().closes).toBe(recording.counts().clients);
     } finally {

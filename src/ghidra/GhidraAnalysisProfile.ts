@@ -22,7 +22,6 @@ import {
   readGhidraPsxSource,
   type GhidraPsxInspectionHost,
 } from "./GhidraPsxLoader.js";
-import { GHIDRA_FUNCTION_OPERATIONS } from "./GhidraFunctionValues.js";
 
 /** Resolve version-bound, deterministic semantics before Ghidra imports a target. */
 export const resolveGhidraAnalysisProfile = async (
@@ -120,12 +119,12 @@ export const resolveGhidraAnalysisProfile = async (
             inspected.candidate.language_assets,
           ),
           psx_analyzer_classes: [...inspected.candidate.analyzer_classes],
-          psx_operation_scope: "inventory-and-load-image-v1",
+          psx_operation_scope: "inventory-load-image-and-static-functions-v1",
           psx_source_provenance: "rea-psx-filebytes-rebind-v2",
           psx_preparation_transaction: "exclusive-top-level-v1",
           startup_agreement: "psx-observed-import-and-provenance-v3",
-          instruction_flow_evidence: "unavailable-pending-psx-semantics-v1",
-          unavailable_function_operations: [...GHIDRA_FUNCTION_OPERATIONS],
+          instruction_flow_evidence:
+            "decoded-return-before-jump-and-delay-slots-v2",
           load_image_evidence: "independent-psx-adapted-payload-entry-v2",
         }),
       });
@@ -161,7 +160,8 @@ export const resolveGhidraAnalysisProfile = async (
         function_body_evidence: "complete-inclusive-ranges-v1",
         function_references: "complete-body-and-entry-reference-manager-v2",
         location_resolution: "explicit-address-exact-entry-symbol-first-v3",
-        instruction_flow_evidence: "decoded-return-pcode-v1",
+        instruction_flow_evidence:
+          "decoded-return-before-jump-and-delay-slots-v2",
         process_launch:
           installation.platform === "win32"
             ? "official-headless-script-v1"

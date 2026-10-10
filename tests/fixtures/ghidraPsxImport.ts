@@ -24,9 +24,15 @@ import type { GhidraSessionError } from "../../src/ghidra/GhidraSessionError.js"
 import { jsonValueSchema } from "../../src/domain/jsonValue.js";
 import { ok, type Result } from "../../src/domain/result.js";
 import { silentLogger } from "../../src/logger.js";
+import type { GhidraProviderClientFactory } from "../../src/ghidra/GhidraProviderClient.js";
+import type { JsonValue } from "../../src/domain/jsonValue.js";
+import type { z } from "zod";
+import type { nativeInstructionSchema } from "../../src/domain/native/nativeInstruction.js";
 
 /** Real filesystem inventory fixture; these JAR entries are synthetic, not runnable Java. */
-export const createPsxInstallationFixture = async () => {
+export const createPsxInstallationFixture = async (
+  sourceBytes = psxImportBytes(),
+) => {
   const root = await createTestTempDirectory("rea-psx-install-");
   const installationRoot = join(root, "Ghidra installation 雪");
   const extension = join(installationRoot, "Ghidra/Extensions/renamed-psx");
@@ -78,7 +84,7 @@ export const createPsxInstallationFixture = async () => {
     "Ghidra/Processors/MIPS/data/core.sinc",
     "core language input\n",
   );
-  const source = await write("synthetic source 雪.exe", psxImportBytes());
+  const source = await write("synthetic source 雪.exe", sourceBytes);
   const installationHost: GhidraInstallationHost = {
     platform: "linux",
     architecture: "x64",
@@ -126,11 +132,13 @@ export const createPsxRecordingProvider = (
   recordingOptions: {
     readonly loadImage?: (bytes: Buffer) => NativeLoadImageObservation;
     readonly snapshot?: () => Promise<Result<Buffer, GhidraSessionError>>;
+    readonly execute?: ReturnType<GhidraProviderClientFactory>["callTool"];
   } = {},
 ) => {
   const config = parseConfig({ GHIDRA_INSTALL_DIR: fixture.installationRoot });
   if (!config.ok) throw config.error;
   const calls: GhidraOperation[] = [];
+  const queries: { operation: GhidraOperation; parameters: unknown }[] = [];
   let closes = 0;
   let clients = 0;
   const provider = new GhidraProvider(
@@ -160,8 +168,15 @@ export const createPsxRecordingProvider = (
               sha256: options.targetSha256,
             },
           }),
-        callTool: async (operation) => {
+        callTool: async (operation, parameters, requestOptions) => {
           calls.push(operation);
+          queries.push({ operation, parameters: structuredClone(parameters) });
+          if (recordingOptions.execute)
+            return recordingOptions.execute(
+              operation,
+              parameters,
+              requestOptions,
+            );
           switch (operation) {
             case "list_documents":
               return ok(["synthetic PSX"]);
@@ -195,6 +210,9 @@ export const createPsxRecordingProvider = (
                   ),
                 ),
               );
+            case "read_function_instructions":
+            case "procedure_pseudo_code":
+              return ok(psxSimulatedOperation(operation, parameters));
             default:
               throw new Error(
                 `Unmodeled simulated PSX bridge operation: ${operation}`,
@@ -215,6 +233,7 @@ export const createPsxRecordingProvider = (
     provider,
     config: config.value,
     calls,
+    queries,
     counts: () => ({ closes, clients }),
   };
 };
@@ -565,4 +584,483 @@ export const psxUnavailableLoadImageObservation = (
         psxFixtureMetadataPreservation("unavailable").label_history.after,
     },
   };
+};
+
+// Explicitly simulated Phase 4 protocol values. Measured G1 includes decoder
+// results for all 21 words and G1 tail/data/reference facts. All modeled values
+// below exercise adapter contracts and never establish native acceptance.
+const simulatedWords = [
+  [0x00, 0x27bdfff0],
+  [0x04, 0xafbf000c],
+  [0x08, 0x0c004020],
+  [0x0c, 0x24040007],
+  [0x10, 0x10800003],
+  [0x14, 0x24050009],
+  [0x18, 0x0800400a],
+  [0x1c, 0x2406000b],
+  [0x20, 0x2406000d],
+  [0x24, 0],
+  [0x28, 0x3c088001],
+  [0x2c, 0x25080100],
+  [0x30, 0x91090000],
+  [0x34, 0x0320f809],
+  [0x38, 0x2407000f],
+  [0x3c, 0x8fbf000c],
+  [0x40, 0x27bd0010],
+  [0x44, 0x03e00008],
+  [0x48, 0x24020003],
+  [0x80, 0x03e00008],
+  [0x84, 0x24820001],
+] as const;
+export const psxInstructionFlowBytes = (): Buffer => {
+  const bytes = psxImportBytes();
+  for (const [offset, word] of simulatedWords)
+    bytes.writeUInt32LE(word, 0x800 + offset);
+  Buffer.from("5245412d5053582d5034007f80feff55", "hex").copy(bytes, 0x900);
+  return bytes;
+};
+const addressAt = (offset: number) => `0x${(0x80010000 + offset).toString(16)}`;
+const simulatedIdentity = (entry = "0x80010000") => {
+  const leaf = entry === "0x80010080";
+  return {
+    address: entry,
+    name: leaf ? "simulated_leaf" : "simulated_entry",
+    classification: {
+      external: false,
+      thunk: false,
+      thunk_target: null,
+      provenance: "ghidra-function-manager",
+    },
+    body: {
+      available: true,
+      provenance: "ghidra-function-body-address-set",
+      ranges: [{ start: entry, end: leaf ? "0x80010087" : "0x8001004b" }],
+      total_bytes: leaf ? 8 : 76,
+      span_bytes: leaf ? 8 : 76,
+      non_contiguous: false,
+      contains_entry: true,
+    },
+  };
+};
+const simulatedCallEdge = () => ({
+  source_address: "0x80010008",
+  target_address: "0x80010080",
+  source_procedure: simulatedIdentity(),
+  target_procedure: simulatedIdentity("0x80010080"),
+  kind: {
+    available: true,
+    provenance: "ghidra-reference-manager",
+    type: "UNCONDITIONAL_CALL",
+    flow: true,
+    call: true,
+    jump: false,
+    data: false,
+    read: false,
+    write: false,
+    indirect: false,
+    computed: false,
+    conditional: false,
+    terminal: false,
+    primary: true,
+    operand_index: 0,
+    external: false,
+  },
+});
+export const psxSimulatedInstruction = (
+  address: string,
+): z.infer<typeof nativeInstructionSchema> => {
+  const offset = Number(BigInt(address) - 0x80010000n);
+  const row = simulatedWords.find(([value]) => value === offset);
+  const transfers: Readonly<
+    Record<
+      number,
+      {
+        kind: "call" | "jump" | "return";
+        conditional: boolean;
+        computed: boolean;
+        destinations: string[];
+        type: string;
+      }
+    >
+  > = {
+    0x08: {
+      kind: "call",
+      conditional: false,
+      computed: false,
+      destinations: ["0x80010080"],
+      type: "UNCONDITIONAL_CALL",
+    },
+    0x10: {
+      kind: "jump",
+      conditional: true,
+      computed: false,
+      destinations: ["0x80010020"],
+      type: "CONDITIONAL_JUMP",
+    },
+    0x18: {
+      kind: "jump",
+      conditional: false,
+      computed: false,
+      destinations: ["0x80010028"],
+      type: "UNCONDITIONAL_JUMP",
+    },
+    0x34: {
+      kind: "call",
+      conditional: false,
+      computed: true,
+      destinations: [],
+      type: "COMPUTED_CALL",
+    },
+    0x44: {
+      kind: "return",
+      conditional: false,
+      computed: false,
+      destinations: [],
+      type: "TERMINATOR",
+    },
+    0x80: {
+      kind: "return",
+      conditional: false,
+      computed: false,
+      destinations: [],
+      type: "TERMINATOR",
+    },
+  };
+  const transfer = transfers[offset];
+  const status = row
+    ? "decoded"
+    : offset === 1
+      ? "not-instruction-boundary"
+      : offset === 0x100
+        ? "data"
+        : offset === 0x104
+          ? "undecodable"
+          : "outside-memory";
+  const bytes = Buffer.alloc(4);
+  if (row) bytes.writeUInt32LE(row[1]);
+  return {
+    address,
+    status,
+    procedure:
+      offset < 0x4c
+        ? "0x80010000"
+        : offset >= 0x80 && offset < 0x88
+          ? "0x80010080"
+          : null,
+    architecture: "PSX:LE:32:default",
+    mode: "default",
+    bytes: row ? bytes.toString("hex") : null,
+    length: row ? 4 : null,
+    mnemonic: row ? "SIMULATED" : null,
+    raw_disassembly: row ? "explicitly simulated decoder response" : null,
+    operands: [],
+    references: [],
+    limitations: [
+      "Simulated protocol response, not native decoder acceptance.",
+    ],
+    flow: {
+      kind: row ? (transfer?.kind ?? "fallthrough") : "unavailable",
+      conditional: transfer?.conditional ?? false,
+      computed: transfer?.computed ?? false,
+      direct_destinations: transfer?.destinations ?? [],
+      classification_evidence: row
+        ? [
+            {
+              source: "ghidra-listing-flow-type",
+              value: transfer?.type ?? "FALL_THROUGH",
+            },
+            ...(transfer?.kind === "return"
+              ? [{ source: "ghidra-instruction-pcode", value: "RETURN" }]
+              : []),
+          ]
+        : [],
+    },
+    delay_slots: row
+      ? {
+          is_in_delay_slot: [0x0c, 0x14, 0x1c, 0x38, 0x48, 0x84].includes(
+            offset,
+          ),
+          depth: transfer ? 1 : 0,
+          addresses: transfer ? [addressAt(offset + 4)] : [],
+        }
+      : { is_in_delay_slot: null, depth: null, addresses: null },
+  };
+};
+/** Strict modeled operation family for public-boundary simulation only. */
+export const psxSimulatedOperation = (
+  operation: GhidraOperation,
+  parameters: Record<string, unknown>,
+): JsonValue => {
+  if (
+    parameters.document !== undefined &&
+    parameters.document !== null &&
+    parameters.document !== "synthetic PSX"
+  )
+    throw new Error("Unmodeled document selector");
+  const selected =
+    typeof parameters.procedure === "string"
+      ? parameters.procedure
+      : "0x80010000";
+  const identity = simulatedIdentity(
+    selected === "0x80010080" ||
+      selected === "0x80010084" ||
+      selected === "simulated_leaf"
+      ? "0x80010080"
+      : "0x80010000",
+  );
+  const instructions = simulatedWords
+    .filter(([offset]) =>
+      identity.address === "0x80010080" ? offset >= 0x80 : offset < 0x80,
+    )
+    .map(([offset]) => `${addressAt(offset)}: SIMULATED`);
+  const pseudocode =
+    identity.address === "0x80010080"
+      ? "int simulated_leaf(int a0) { return a0 + 1; }"
+      : "int simulated_entry(void) { simulated_leaf(7); return 3; }";
+  const edge = simulatedCallEdge();
+  switch (operation) {
+    case "inspect_native_instruction":
+      return jsonValueSchema.parse(
+        psxSimulatedInstruction(String(parameters.address)),
+      );
+    case "resolve_native_call_targets":
+      return simulatedTargets(String(parameters.address));
+    case "procedure_address":
+      return identity.address;
+    case "procedure_info":
+      return {
+        name: identity.name,
+        entrypoint: identity.address,
+        basicblock_count: 1,
+        length: identity.body.total_bytes,
+        signature: null,
+        locals: [],
+        classification: identity.classification,
+        body: identity.body,
+      };
+    case "resolve_containing_procedure":
+      return {
+        query_address: String(parameters.address),
+        found: true,
+        procedure: simulatedIdentity(
+          String(parameters.address) === "0x80010084"
+            ? "0x80010080"
+            : "0x80010000",
+        ),
+      };
+    case "read_function_instructions":
+      return {
+        procedure: identity,
+        instructions,
+        limitations: ["Simulated Listing coverage."],
+      };
+    case "procedure_assembly":
+      return instructions.join("\n");
+    case "procedure_pseudo_code":
+      return pseudocode;
+    case "procedure_callees":
+      return ["0x80010080"];
+    case "procedure_callers":
+      return ["0x80010000"];
+    case "procedure_references":
+      return {
+        procedure: identity,
+        direction: String(parameters.direction ?? "outgoing"),
+        references: [edge],
+        reference_kinds_available: true,
+        unresolved_calls:
+          parameters.direction === "incoming"
+            ? []
+            : [
+                {
+                  address: "0x80010034",
+                  reason: "Computed target unknown in simulation",
+                },
+              ],
+      };
+    case "xrefs":
+      return ["0x80010008"];
+    case "analyze_function":
+      return simulatedDossier(identity, instructions, pseudocode, edge);
+    default:
+      throw new Error(`Unmodeled Phase 4 simulated operation: ${operation}`);
+  }
+};
+
+const simulatedTargets = (address: string): JsonValue => {
+  const instruction = psxSimulatedInstruction(address);
+  return {
+    call_site: instruction.address,
+    procedure: instruction.procedure,
+    status:
+      instruction.status !== "decoded"
+        ? "unavailable"
+        : instruction.flow.kind !== "call"
+          ? "not-call"
+          : instruction.address === "0x80010008"
+            ? "direct"
+            : "unresolved",
+    mechanism:
+      instruction.flow.kind !== "call"
+        ? "unavailable"
+        : instruction.address === "0x80010008"
+          ? "direct"
+          : "computed",
+    targets:
+      instruction.address === "0x80010008"
+        ? [
+            {
+              address: "0x80010080",
+              procedure: "0x80010080",
+              status: "direct",
+              basis: "provider-reference",
+              references: [
+                {
+                  target_address: "0x80010080",
+                  type: "UNCONDITIONAL_CALL",
+                  call: true,
+                  jump: false,
+                  indirect: false,
+                  computed: false,
+                  operand_index: 0,
+                },
+              ],
+            },
+          ]
+        : [],
+    limitations: [
+      "Simulated static references; computed target remains unknown.",
+    ],
+  };
+};
+
+const simulatedDossier = (
+  identity: ReturnType<typeof simulatedIdentity>,
+  instructions: string[],
+  pseudocode: string,
+  edge: ReturnType<typeof simulatedCallEdge>,
+): JsonValue => {
+  return {
+    procedure: { ...identity, signature: null, locals: [] },
+    pseudocode,
+    assembly: instructions,
+    comments: [],
+    callers: identity.address === "0x80010080" ? [simulatedIdentity()] : [],
+    callees:
+      identity.address === "0x80010000"
+        ? [simulatedIdentity("0x80010080")]
+        : [],
+    incoming_references: identity.address === "0x80010080" ? [edge] : [],
+    outgoing_references: identity.address === "0x80010000" ? [edge] : [],
+    unresolved_calls:
+      identity.address === "0x80010000"
+        ? [
+            {
+              address: "0x80010034",
+              reason: "Computed target unknown in simulation",
+            },
+          ]
+        : [],
+    referenced_strings: [],
+    referenced_names: [],
+    basic_blocks: [
+      {
+        start: identity.address,
+        end: identity.body.ranges[0]!.end,
+        successors: [],
+      },
+    ],
+    native_api: {
+      available: false,
+      reason: "Unmodeled high function",
+      residual_unknowns: [
+        "Simulation preserves unavailable recovered signature",
+      ],
+    },
+    native_value_flow: {
+      available: false,
+      reason: "Unmodeled high pcode",
+      limitations: ["Simulation"],
+    },
+    limitations: [
+      "Ghidra provider simulation preserves unresolved computed calls.",
+    ],
+  };
+};
+
+/** Real SDK/session boundary with a simulated PSX bridge, never a native lane. */
+export const connectPsxOperationMcp = async (
+  execute?: ReturnType<GhidraProviderClientFactory>["callTool"],
+) => {
+  const [
+    { Client, InMemoryTransport },
+    { composeBinarySession },
+    { AnalysisProviderRegistry },
+    { createServer },
+  ] = await Promise.all([
+    import("@modelcontextprotocol/client"),
+    import("../../src/application/binary/BinarySessionComposition.js"),
+    import("../../src/application/binary/AnalysisProviderRegistry.js"),
+    import("../../src/server/createServer.js"),
+  ]);
+  const fixture = await createPsxInstallationFixture(psxInstructionFlowBytes());
+  const recording = createPsxRecordingProvider(fixture, {
+    execute:
+      execute ??
+      (async (operation, parameters) =>
+        ok(
+          operation === "inspect_native_load_image"
+            ? jsonValueSchema.parse(
+                psxAppliedLoadImageObservation(await readFile(fixture.source)),
+              )
+            : psxSimulatedOperation(operation, parameters),
+        )),
+  });
+  const session = composeBinarySession(
+    new AnalysisProviderRegistry([recording.provider]),
+  );
+  const server = createServer(
+    { kind: "session", session },
+    { logger: silentLogger },
+  );
+  const mcp = new Client({
+    name: "simulated-psx-static-operations",
+    version: "1",
+  });
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  const close = async () => {
+    const results = await Promise.allSettled([mcp.close(), server.close()]);
+    const closed = await session.close();
+    const failures = results.flatMap((result) =>
+      result.status === "rejected" ? [result.reason as unknown] : [],
+    );
+    if (!closed.ok) failures.push(closed.error);
+    if (failures.length)
+      throw new AggregateError(
+        failures,
+        "Simulated PSX boundary cleanup failed",
+      );
+  };
+  try {
+    await server.connect(serverTransport);
+    await mcp.connect(clientTransport);
+    const opened = await mcp.callTool({
+      name: "open_binary",
+      arguments: { path: fixture.source, provider_id: "ghidra" },
+    });
+    if (opened.isError)
+      throw new Error(`Simulated PSX open failed: ${JSON.stringify(opened)}`);
+  } catch (error) {
+    try {
+      await close();
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        "Simulated PSX setup and cleanup failed",
+      );
+    }
+    throw error;
+  }
+  return { fixture, recording, session, server, mcp, close };
 };

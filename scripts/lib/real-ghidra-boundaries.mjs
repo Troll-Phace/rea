@@ -718,7 +718,7 @@ export async function verifyGhidraBoundaries(
     entrypoint,
     env,
   });
-  await verifyGhidraEntryAliases({
+  const entryAliasFixture = await verifyGhidraEntryAliases({
     call,
     reject: invalid,
     target,
@@ -776,6 +776,7 @@ export async function verifyGhidraBoundaries(
     instruction_flow: instructionFlow,
     qualified_annotation_name_roundtrip: true,
     imported_entry_alias_selection: true,
+    entry_alias_fixture: entryAliasFixture,
     oversized_result_retention_and_complete_export: true,
     long_selector_rejection_and_provider_recovery: true,
     source_immutable: true,

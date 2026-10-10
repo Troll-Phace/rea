@@ -9,6 +9,7 @@ import {
 import { createEvidence } from "../../domain/evidence.js";
 import { createEvidenceBundle } from "../../domain/evidenceBundle.js";
 import { ok } from "../../domain/result.js";
+import type { JsonValue } from "../../domain/jsonValue.js";
 import { createAnalysisExecution } from "../AnalysisProvider.js";
 import {
   createAnalysisSnapshotWorkflowEntry,
@@ -295,13 +296,131 @@ describe("analysis snapshot cache policy", () => {
   );
 });
 
-describe("analysis snapshot cache partitioning", () => {
+describe("load-image cache eligibility without a document input", () => {
+  it("requires a capability descriptor even for an empty-input query", () => {
+    expect(
+      isSnapshotCacheable("inspect_native_load_image", undefined, {}),
+    ).toBe(false);
+  });
+
+  it.each<{
+    policy?: CapabilityDescriptor["cachePolicy"];
+    effects?: Partial<CapabilityDescriptor["effects"]>;
+    cacheable: boolean;
+  }>([
+    { cacheable: true },
+    {
+      policy: "snapshot",
+      effects: { mayWriteFilesystem: true },
+      cacheable: true,
+    },
+    { policy: "live", cacheable: false },
+    {
+      policy: "snapshot",
+      effects: { mutatesArtifact: true },
+      cacheable: false,
+    },
+    {
+      policy: "snapshot",
+      effects: { changesPermissions: true },
+      cacheable: false,
+    },
+    { effects: { mayWriteFilesystem: true }, cacheable: false },
+  ])(
+    "preserves effect and policy guards with empty image parameters: %j",
+    ({ policy, effects, cacheable }) => {
+      const descriptor: CapabilityDescriptor = {
+        operation: "inspect_native_load_image",
+        provider: ANALYSIS_SNAPSHOT_PROVIDER,
+        available: true,
+        reason: null,
+        ...(policy === undefined ? {} : { cachePolicy: policy }),
+        effects: {
+          mutatesArtifact: false,
+          launchesProcess: false,
+          mayShowUi: false,
+          mayAccessNetwork: false,
+          mayWriteFilesystem: false,
+          changesPermissions: false,
+          requiresRoot: false,
+          ...effects,
+        },
+        limitations: [],
+      };
+      expect(
+        isSnapshotCacheable("inspect_native_load_image", descriptor, {}),
+      ).toBe(cacheable);
+    },
+  );
+});
+
+describe("state-dependent queries cannot be replayed as immutable snapshots", () => {
+  it("excludes health, which has no analysis capability descriptor", () => {
+    expect(
+      isSnapshotCacheable("health", undefined, {
+        document: "fixture",
+        address: "0x1000",
+      }),
+    ).toBe(false);
+  });
+  it.each([
+    "current_address",
+    "current_procedure",
+    "current_document",
+    "goto_address",
+    "list_documents",
+  ] as const)(
+    "excludes %s despite explicit coordinates and snapshot policy",
+    (operation) => {
+      const descriptor: CapabilityDescriptor = {
+        operation,
+        provider: ANALYSIS_SNAPSHOT_PROVIDER,
+        available: true,
+        reason: null,
+        cachePolicy: "snapshot",
+        effects: {
+          mutatesArtifact: false,
+          launchesProcess: false,
+          mayShowUi: false,
+          mayAccessNetwork: false,
+          mayWriteFilesystem: true,
+          changesPermissions: false,
+          requiresRoot: false,
+        },
+        limitations: [],
+      };
+      expect(
+        isSnapshotCacheable(operation, descriptor, {
+          document: "fixture",
+          address: "0x1000",
+        }),
+      ).toBe(false);
+    },
+  );
+});
+
+describe("analysis snapshot cache explicit coordinates", () => {
   it.each<{
     operation: Exclude<AnalysisOperation, "health">;
-    parameters: Record<string, string>;
+    parameters: Record<string, JsonValue>;
     cacheable: boolean;
   }>([
     { operation: "list_strings", parameters: {}, cacheable: false },
+    {
+      operation: "list_strings",
+      parameters: { document: null },
+      cacheable: false,
+    },
+    {
+      operation: "list_strings",
+      parameters: { document: 7 },
+      cacheable: false,
+    },
+    {
+      operation: "list_strings",
+      parameters: { document: "" },
+      cacheable: true,
+    },
     {
       operation: "list_strings",
       parameters: { document: "fixture" },
@@ -315,6 +434,26 @@ describe("analysis snapshot cache partitioning", () => {
     {
       operation: "address_name",
       parameters: { document: "fixture", address: "0x1000" },
+      cacheable: true,
+    },
+    {
+      operation: "address_name",
+      parameters: { document: "fixture", address: null },
+      cacheable: false,
+    },
+    {
+      operation: "address_name",
+      parameters: { document: "fixture", address: 4096 },
+      cacheable: false,
+    },
+    {
+      operation: "address_name",
+      parameters: { address: "0x1000" },
+      cacheable: false,
+    },
+    {
+      operation: "address_name",
+      parameters: { document: "", address: "" },
       cacheable: true,
     },
     { operation: "binary_overview", parameters: {}, cacheable: true },
@@ -342,7 +481,9 @@ describe("analysis snapshot cache partitioning", () => {
       );
     },
   );
+});
 
+describe("analysis snapshot cache partitioning", () => {
   it("returns detached data only from the exact provider/profile partition", () => {
     const cache = new AnalysisSnapshotCache();
     const execution = createAnalysisExecution(

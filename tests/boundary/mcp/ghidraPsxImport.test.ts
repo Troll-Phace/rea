@@ -18,7 +18,7 @@ import {
 } from "../../fixtures/ghidraPsxImport.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
 
-it("binds a synthetic PSX session through MCP, preserves inventory and refuses function claims before dispatch", async () => {
+it("binds a synthetic PSX session through MCP, preserves inventory, admits static reads and refuses annotations before dispatch", async () => {
   const fixture = await createPsxInstallationFixture();
   const recording = createPsxRecordingProvider(fixture);
   const session = composeBinarySession(
@@ -54,7 +54,8 @@ it("binds a synthetic PSX session through MCP, preserves inventory and refuses f
           selection_source: "request",
           analysis_profile: {
             parameters: {
-              psx_operation_scope: "inventory-and-load-image-v1",
+              psx_operation_scope:
+                "inventory-load-image-and-static-functions-v1",
             },
           },
         },
@@ -92,24 +93,32 @@ it("binds a synthetic PSX session through MCP, preserves inventory and refuses f
     for (const [name, arguments_] of [
       ["read_function_instructions", { procedure: "0x80010000" }],
       ["procedure_pseudo_code", { procedure: "0x80010000" }],
-      [
-        "annotate_native_function",
-        { procedure: "0x80010000", name: "renamed" },
-      ],
     ] as const) {
-      const rejected = await mcp.callTool({ name, arguments: arguments_ });
-      expect(rejected.isError, name).toBe(true);
-      expect(parseMcpToolError(rejected)).toMatchObject({
-        error: {
-          code: "capability_unavailable",
-          details: { reason: expect.stringMatching(/PSX.*Phase 4/u) },
-        },
-      });
-      expect(parseMcpToolError(rejected)).not.toHaveProperty("evidence_id");
+      const admitted = await mcp.callTool({ name, arguments: arguments_ });
+      expect(admitted.isError, name).not.toBe(true);
+      const readEvidence = parseEvidence(admitted.structuredContent);
+      expect(readEvidence.operation).toBe(name);
+      expect(session.evidenceById(readEvidence.evidence_id)).toEqual(
+        readEvidence,
+      );
     }
+    const rejected = await mcp.callTool({
+      name: "annotate_native_function",
+      arguments: { procedure: "0x80010000", name: "renamed" },
+    });
+    expect(rejected.isError).toBe(true);
+    expect(parseMcpToolError(rejected)).toMatchObject({
+      error: {
+        code: "capability_unavailable",
+        details: { reason: expect.stringMatching(/PSX observational scope/u) },
+      },
+    });
+    expect(parseMcpToolError(rejected)).not.toHaveProperty("evidence_id");
     expect(recording.calls).toEqual([
       "list_strings",
       "inspect_native_load_image",
+      "read_function_instructions",
+      "procedure_pseudo_code",
     ]);
     const closed = await mcp.callTool({ name: "close_binary", arguments: {} });
     expect(closed.isError).not.toBe(true);

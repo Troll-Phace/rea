@@ -258,7 +258,7 @@ try {
           psx_source_provenance: "rea-psx-filebytes-rebind-v2",
           psx_preparation_transaction: "exclusive-top-level-v1",
           load_image_evidence: "independent-psx-adapted-payload-entry-v2",
-          psx_operation_scope: "inventory-and-load-image-v1",
+          psx_operation_scope: "inventory-load-image-and-static-functions-v1",
           startup_agreement: "psx-observed-import-and-provenance-v3",
         },
       };
@@ -1095,14 +1095,15 @@ async function verifyPublicMcp(
     assertProductionImage(record.load_image, sourceSha, fixture);
     const gated = requireMcpToolError(
       await client.callTool({
-        name: "read_function_instructions",
+        name: "annotate_native_function",
         arguments: {
+          name: "refused",
           procedure: `0x${fixture.expected.initialPc.toString(16)}`,
         },
       }),
     );
     assert.equal(gated.code, "capability_unavailable");
-    assert.match(gated.details.reason, /PSX.*Phase 4/u);
+    assert.match(gated.details.reason, /PSX observational scope/u);
     record.gated_operation = gated;
     await publicOperation(client, "close_binary");
     opened = false;
@@ -1482,7 +1483,10 @@ function assertPublicEvidence(evidence, sourceSha, fixture) {
     parameters.load_image_evidence,
     "independent-psx-adapted-payload-entry-v2",
   );
-  assert.equal(parameters.psx_operation_scope, "inventory-and-load-image-v1");
+  assert.equal(
+    parameters.psx_operation_scope,
+    "inventory-load-image-and-static-functions-v1",
+  );
   assert.equal(parameters.psx_import.schema_version, 3);
   assert.deepEqual(parameters.psx_import.supplied_loader_options, {});
   assert.equal(

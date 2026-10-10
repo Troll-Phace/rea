@@ -52,7 +52,7 @@ import {
   GHIDRA_PROVIDER_IDENTITY,
   healthLimitations,
   psxImportLimitations,
-  psxFunctionUnavailableReason,
+  GHIDRA_PSX_READ_OPERATIONS,
   windowsP0Limitations,
   limitationsFor,
 } from "./GhidraProviderCapabilities.js";
@@ -160,7 +160,9 @@ export const createGhidraProviderClient = (input: {
       extensions.length > 0 ||
       commitment.data.source_sha256 !== target.sha256 ||
       committedProfile.parameters.psx_operation_scope !==
-        "inventory-and-load-image-v1" ||
+        "inventory-load-image-and-static-functions-v1" ||
+      committedProfile.parameters.instruction_flow_evidence !==
+        "decoded-return-before-jump-and-delay-slots-v2" ||
       committedProfile.parameters.psx_source_provenance !==
         "rea-psx-filebytes-rebind-v2" ||
       committedProfile.parameters.psx_preparation_transaction !==
@@ -289,12 +291,19 @@ export const createGhidraProviderClient = (input: {
   return {
     execute: async (operation, parameters, options) => {
       if (extensionFailure !== undefined) return err(extensionFailure);
-      if (target.format === "ps-x-exe" && isGhidraFunctionOperation(operation))
+      if (
+        target.format === "ps-x-exe" &&
+        !GHIDRA_PSX_READ_OPERATIONS.has(operation)
+      )
         return err(
           new AnalysisCapabilityUnavailableError(
             "ghidra",
             operation,
-            psxFunctionUnavailableReason,
+            operation === "annotate_native_function"
+              ? "PSX observational scope does not admit function annotation mutation."
+              : operation === "inspect_native_data_type"
+                ? "PSX data-type inspection is outside the admitted static-query scope."
+                : "The PSX adapter does not admit this operation in its observational scope.",
           ),
         );
       if (
