@@ -1,6 +1,6 @@
 # PS-X EXE support — phased implementation plan
 
-Status: Phase 1 complete, accepted and merged through [PR #1](https://github.com/Troll-Phace/rea/pull/1); Phase 2 technically accepted with PR/merge delivery pending under user authorization; Phases 3–5 remain planned and unauthorized. Follow the phase delivery workflow through a reviewable PR; merging requires approval of that concrete PR. This document grants no new authority. Repository: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea`; fork `Troll-Phace/rea`, baseline handoff `7aa4d768`, package `6.3.0`.
+Status: Phase 1 complete, accepted and merged through [PR #1](https://github.com/Troll-Phace/rea/pull/1); Phase 2 technically accepted with [PR #2](https://github.com/Troll-Phace/rea/pull/2) open and user merge approval pending; Phases 3–5 remain planned and unauthorized. Follow the phase delivery workflow through a reviewable PR; merging requires approval of that concrete PR. This document grants no new authority. Repository: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea`; fork `Troll-Phace/rea`, baseline handoff `7aa4d768`, package `6.3.0`.
 
 ## Outcome and boundaries
 
@@ -196,4 +196,4 @@ Pinned Node 24.18.0/npm 11.16.0 and locked dependencies were established for Pha
 
 Phase 1 measured loader/class identity and demonstrated the RAM-option failure; Phase 2 must verify the saved default-only production policy and observed startup agreement. Loss of FileBytes provenance remains PSX-007 and requires a Phase 3 producer-boundary plan. Relevant SDK assets may alter analysis and must participate in profile identity. Delay-slot/p-code behavior requires Phase 4 synthetic decoding. Linux evidence is unavailable until run. The AC3 smoke remains a Phase 5 gate and may expose decompiler limitations without implying payload import failure.
 
-Next action: commit/push Phase 2 and open the reviewable PR, then wait for concrete user merge approval under the reviewed contract. Phase 1 is complete; no batch rollover applies. Do not declare Phase 2 implementation or live gates complete from this planning document.
+Next action: present PR #2 and wait for concrete user merge approval, then verify the actual head before merge under the reviewed contract. Phase 1 is complete; no batch rollover applies. Do not declare Phase 2 implementation or live gates complete from this planning document.

@@ -1,6 +1,6 @@
 # PSX support progress
 
-Batch: psx-support-2026-10. Active phase: Phase 2 in progress (technical acceptance passed; PR/merge delivery pending); Phase 1 complete. Scaffold status: complete and locally validated. Current branch: `codex/psx-phase-2`, baseline `3e36f98d10d3a631ed134ae3b4ff4b2d05c1e168`. Phase 1 technical acceptance and bounded close review passed; implementation commit `0a8b033ac7bbd2f6e6a5f8f48b55504463f3f000` pushed and [PR #1](https://github.com/Troll-Phace/rea/pull/1) opened. The user approved this PR and it merged at `7fdb2657cb9839e56272763a3d1a0e19fd5041d6` on 2026-10-09 (2026-10-10T03:02:01Z).
+Batch: psx-support-2026-10. Active phase: Phase 2 in progress (technical acceptance passed; PR #2 open, user merge approval pending); Phase 1 complete. Scaffold status: complete and locally validated. Current branch: `codex/psx-phase-2`, baseline `3e36f98d10d3a631ed134ae3b4ff4b2d05c1e168`. Phase 1 technical acceptance and bounded close review passed; implementation commit `0a8b033ac7bbd2f6e6a5f8f48b55504463f3f000` pushed and [PR #1](https://github.com/Troll-Phace/rea/pull/1) opened. The user approved this PR and it merged at `7fdb2657cb9839e56272763a3d1a0e19fd5041d6` on 2026-10-09 (2026-10-10T03:02:01Z).
 
 ## Planning and implementation history
 
@@ -57,12 +57,18 @@ Batch: psx-support-2026-10. Active phase: Phase 2 in progress (technical accepta
 
 - Final local gate on 2026-10-10: `npm run check` passed six tasks (502 warnings, zero lint errors), resolved module boundaries across 1,319 source files and architecture guards across 1,015. `npm run docs:check` passed six tasks; all 704 test files are discovered exactly once; package dry-run, configured harness, documentation links and whitespace checks passed. The bounded review requires no source correction. PSX-006 is closed by the verified default-only production policy; PSX-002 remains in progress until required PR/approved-merge delivery. PSX-007 and PSX-008 remain open. Linux, source-backed attestation, instruction semantics, game acceptance and installed-package/fresh-client gates remain unperformed.
 
+## Phase 2 delivery checkpoint
+
+- Implementation commit `a625ac9186e274a33873646674bcf7fb5cd9a896`, Conventional subject `feat(psx): verify deterministic Ghidra import`, committed the intended 37 text files. Normal pre-commit hooks passed and all ten measured source/plan fingerprints remained unchanged afterward.
+- Branch `codex/psx-phase-2` pushed to `origin`; normal pre-push checks passed. [PR #2](https://github.com/Troll-Phace/rea/pull/2) opened and attached to the chat on 2026-10-10. GitHub confirmed open state, head `a625ac9186e274a33873646674bcf7fb5cd9a896`, base `main`, clean merge state and no advertised remote checks. Automatic merge is disabled.
+- This documentation-only checkpoint records actual delivery before handoff. Phase 2 technical acceptance and bounded review pass; PSX-002 remains in progress until required user approval and verified merge. No later phase is authorized. Final-head local/remote checks follow this checkpoint commit; no merge has occurred.
+
 ## Pending
 
 - Phase 2 planning completed on 2026-10-09. Astra/low saved the detailed [Phase 2 execution contract](active/phase-2-plan.md) against clean `main` at `3e36f98d10d3a631ed134ae3b4ff4b2d05c1e168`, equal to the observed local `origin/main`. Orchestrator readback reviewed ownership, existing interfaces/test lanes, default-only policy, observed startup metadata, capability limits and host scope. Saved-plan links, targeted formatting, configured harness validation and Git whitespace checks passed.
 - User authorized execution with “you can execute the plan when ready.” P2-00: `codex/psx-phase-2` created from the reconciled baseline; pinned repository-local Node 24.18.0/npm 11.16.0 verified. Phase 2 implementation, scoped synthetic provider verification and PR delivery are authorized; concrete PR merge approval remains required. No new installation is planned.
 - User authorized Phase 1 with “begin” and then explicitly approved a repository-local Node 24.18.0/npm 11.16.0 installation exception under `.agent-runtime/toolchain`, after automatic approval review rejected the initial installation. Global software and provider installations remain unchanged; P1-00 prerequisites are complete.
-- Phase 1 is complete and merged; Phase 2 is authorized. Phase 2 macOS synthetic public-provider imports now pass; technical acceptance and review passed; PR/approved-merge delivery remains pending. Phases 3–5, Linux live coverage, local AC3 pilot and package/client integration remain unperformed; later-phase implementation is unauthorized.
+- Phase 1 is complete and merged; Phase 2 is authorized. Phase 2 macOS synthetic public-provider imports now pass; technical acceptance and review passed; PR #2 is open and required user merge approval remains pending. Phases 3–5, Linux live coverage, local AC3 pilot and package/client integration remain unperformed; later-phase implementation is unauthorized.
 - Final delivery checks use the verified local pinned toolchain; the ambient older toolchain is unchanged. PSX-001 and PSX-006 are closed; PSX-007 retains its Phase 3 acceptance criteria and PSX-008 retains its deferred test criteria.
 - New project-rooted client pilot for agent/skill discovery; hook definitions configured; automatic execution pending lifecycle/trust pilot.
 - Skill-creator quick validation could not run because the current Python lacks PyYAML; configured repository harness validation covers its existing structural checks only. Planner write permissions and saved-file handoff discovery still require a fresh client pilot.
@@ -73,4 +79,4 @@ User selected local issue management on 2026-10-09. docs/ISSUE_LEDGER.md is cano
 
 ## Next action
 
-Commit and push the verified Phase 2 branch, open the reviewable PR and present it for user approval before merge under the [shared plan](active/phase-2-plan.md). The contract accounts for PSX-006/PSX-007 and measured register/fill/mapping limitations; no new batch rollover or later-phase implementation is started.
+Present [PR #2](https://github.com/Troll-Phace/rea/pull/2) for concrete user approval, then verify its current head/checks before normal merge and reconciliation under the [shared plan](active/phase-2-plan.md). The contract accounts for PSX-006/PSX-007 and measured register/fill/mapping limitations; no new batch rollover or later-phase implementation is started.

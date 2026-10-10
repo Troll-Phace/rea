@@ -1,7 +1,7 @@
 # PSX issue ledger
 
 Canonical offline ledger. Batch psx-support-2026-10. Next ID: PSX-009.
-No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR #1; PSX-001 is closed. Phase 2 execution is authorized; PSX-002 is technically accepted with PR/merge delivery pending; PSX-006 is closed by the verified default-only production policy. PSX-007 remains a Phase 3 blocker; Phases 3–5 remain planned and unauthorized.
+No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR #1; PSX-001 is closed. Phase 2 execution is authorized; PSX-002 is technically accepted with [PR #2](https://github.com/Troll-Phace/rea/pull/2) open and user merge approval pending; PSX-006 is closed by the verified default-only production policy. PSX-007 remains a Phase 3 blocker; Phases 3–5 remain planned and unauthorized.
 
 | ID      | Type    | Severity | Status      | Phase   | Title                                               |
 | ------- | ------- | -------- | ----------- | ------- | --------------------------------------------------- |
@@ -32,7 +32,7 @@ No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR 
 - Dependencies: Phase 1 accepted; PSX-006 measured RAM-option defect requires a deterministic supported configuration and production profile replan. Default-only research does not close this gate. Effective duplicate analyzer selection must participate in fingerprint decisions. Account explicitly for missing SP context, uninitialized declared fill and variant-dependent surrounding mapping before admission.
 - Done-criteria: Target-specific loader diagnostics, stable profile identity, supported-host admission and real synthetic open/close verified; Phase 2 checks and delivery satisfied.
 - Tasks and exact verification contract: [shared Phase 2 plan](active/phase-2-plan.md), P2-00/P2-11/P2-12/P2-21/P2-22/P2-90; overview in PLAN.md. User authorized execution after planning; branch `codex/psx-phase-2`. PSX-006 closed only after its actual production criteria passed; PSX-007 remains a Phase 3 blocker.
-- Closure evidence/date/commit/PR: technical acceptance passed 2026-10-10, final report SHA-256 `68936261cfdc08b7cce99a1466aa85bb8e168ccf0ae1fce57926f3f0c6b97cd8`; bounded review found no new source findings. Completion commit/PR and approved merge remain pending, so this record remains in progress.
+- Closure evidence/date/commit/PR: technical acceptance passed 2026-10-10, final report SHA-256 `68936261cfdc08b7cce99a1466aa85bb8e168ccf0ae1fce57926f3f0c6b97cd8`; bounded review found no new source findings. Implementation commit `a625ac9186e274a33873646674bcf7fb5cd9a896`; [PR #2](https://github.com/Troll-Phace/rea/pull/2) is open with normal commit/push hooks passed and no remote checks advertised. User approval and verified merge remain pending, so this record remains in progress.
 
 ## PSX-003 — Independent memory and entry evidence
 
@@ -51,7 +51,7 @@ No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR 
 - Impact: planned explicit RAM transport cannot be treated as usable or deterministic; exit status alone can misreport import success.
 - Disposition: Phase 1 failure preserved. The [Phase 2 contract](active/phase-2-plan.md) replaces the unusable override transport with an explicit default-only KSEG0 2 MiB policy, rejects layouts requiring other RAM settings, and validates independently observed effective facts. The third-party override defect remains documented; no installation patch was applied.
 - Done-criteria: supported unattended production import configuration is explicitly planned, implemented and verified with actual import/observer completion, effective options/profile identity, source integrity and awaited cleanup. If RAM overrides remain unsupported, target-specific policy must refuse layouts requiring them and document that limit. Do not patch third-party installations as an implicit workaround.
-- Closure evidence/date/commit/PR: closed 2026-10-10. [Phase 2 results](active/phase-2-results.md) record nine actual production imports, omitted RAM options, observed base/size/defaults, source/profile/asset agreement, exact cleanup and verified empty lineage. Report SHA-256 `68936261cfdc08b7cce99a1466aa85bb8e168ccf0ae1fce57926f3f0c6b97cd8`. Final 171 source tests, 101 focused boundary tests (one Windows skip), TypeScript/static/docs/package gates and bounded close review passed. This closes the REA production-policy criteria; phase PR/merge delivery is tracked separately by PSX-002.
+- Closure evidence/date/commit/PR: closed 2026-10-10. [Phase 2 results](active/phase-2-results.md) record nine actual production imports, omitted RAM options, observed base/size/defaults, source/profile/asset agreement, exact cleanup and verified empty lineage. Report SHA-256 `68936261cfdc08b7cce99a1466aa85bb8e168ccf0ae1fce57926f3f0c6b97cd8`. Final 171 source tests, 101 focused boundary tests (one Windows skip), TypeScript/static/docs/package gates and bounded close review passed. Implementation commit `a625ac9186e274a33873646674bcf7fb5cd9a896`, [PR #2](https://github.com/Troll-Phace/rea/pull/2) open. This closes the REA production-policy criteria; approved-merge delivery is tracked separately by PSX-002.
 
 ## PSX-007 — Installed PSX loader lacks original file provenance
 

@@ -2,7 +2,7 @@
 
 ## Purpose and scope
 
-Add trustworthy PS-X EXE support to REA's existing CLI/MCP Ghidra workflow. This is a feature batch in the Troll-Phace/rea fork, upstream morluto/rea. Default branch main; initial source baseline 7aa4d768, package 6.3.0. User authorized Phase 1 implementation with “begin”; completion follows the phase PR workflow, with concrete PR approval before merge. Phase 1 is complete and merged through approved PR #1. The user authorized Phase 2 execution after review of its shared contract; Phase 2 technical acceptance and review pass; required PR/approved-merge delivery is pending. Phases 3–5 remain unimplemented and unauthorized.
+Add trustworthy PS-X EXE support to REA's existing CLI/MCP Ghidra workflow. This is a feature batch in the Troll-Phace/rea fork, upstream morluto/rea. Default branch main; initial source baseline 7aa4d768, package 6.3.0. User authorized Phase 1 implementation with “begin”; completion follows the phase PR workflow, with concrete PR approval before merge. Phase 1 is complete and merged through approved PR #1. The user authorized Phase 2 execution after review of its shared contract; Phase 2 technical acceptance and review pass; [PR #2](https://github.com/Troll-Phace/rea/pull/2) is open and required user merge approval remains pending. Phases 3–5 remain unimplemented and unauthorized.
 
 Repository: /Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea. Do not treat the parent AC3 workspace as this Git repository.
 
