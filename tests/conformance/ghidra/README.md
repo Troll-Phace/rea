@@ -67,3 +67,33 @@ are not serialized. Reports and payloads belong in ignored local storage.
 This lane measures the installed loader on its actual host. It does not establish
 public REA PSX support, instruction-semantic acceptance, Linux behavior from a
 macOS run, or source-backed attestation when FileBytes provenance is absent.
+
+`scripts/verify-real-ghidra-psx-import.mjs` verifies the production defaults-only
+PSX import policy using the same three generated variants. It accepts no binary
+path. Build the runtime first and select the existing provider/JDK:
+
+```bash
+GHIDRA_INSTALL_DIR=/absolute/ghidra JAVA_HOME=/absolute/jdk \
+  REA_PSX_IMPORT_PROOF_CAPTURE_DIR="$PWD/docs/psx-local/phase-2-import-runs" \
+  npm run verify:ghidra:psx-import
+```
+
+The optional capture directory must be absolute and ignored by Git. Each run
+records canonical source/profile identities, selected assets, safe exact argv,
+private before-analysis observations and separately labeled authenticated
+provider-boundary before/after observations. Public stdio MCP and CLI sessions
+are distinct imports; their identical fixture/profile identities are checked,
+and the provider-boundary health record is not attributed to a public session.
+The public load-image result must remain unsupported with empty source-file
+provenance. Function instructions remain gated. Four generated header-policy
+negatives must fail before allocating a provider runtime.
+
+Reports contain explicitly selected provider/JDK coordinates and selected
+bounded startup report/marker lines;
+transport credentials are redacted and ambient environment is not serialized.
+The verifier requires unchanged source bytes, awaited owned-root cleanup and a
+verified empty process lineage. Failed runs retain their diagnostic report;
+cleanup failure retains ownership of the affected runtime. This lane establishes
+production import on its measured host only. Linux, MIPS instruction semantics,
+source-backed provenance, patched AC3, and installed-package/fresh-client
+operation remain separate gates.

@@ -57,7 +57,7 @@ const provider = (
 
 describe("Ghidra PSX target admission", () => {
   it.each(["linux", "darwin", "win32"] as const)(
-    "refuses PSX on %s before installation or client work",
+    "reports coarse PSX support on %s without installation or client work",
     (platform) => {
       let installationProbes = 0;
       let clients = 0;
@@ -84,14 +84,13 @@ describe("Ghidra PSX target admission", () => {
         availableArchitectures: ["mips"],
       };
       expect(ghidra.inspectTargetSupport(target)).toMatchObject({
-        status: "unsupported",
-        code: "target_format_unsupported",
-        reason:
-          "PS-X EXE is recognized, but PSX analysis is not supported by this REA provider.",
+        status: platform === "win32" ? "unsupported" : "supported",
+        code: platform === "win32" ? "target_format_unsupported" : null,
         diagnostics: {
           target_format: "ps-x-exe",
           architecture: "mips",
           host_platform: platform,
+          psx_loader: { status: "profile inspection pending" },
         },
       });
       expect(installationProbes).toBe(0);

@@ -1,6 +1,6 @@
 # PS-X EXE support — phased implementation plan
 
-Status: Phase 1 complete, accepted and merged through [PR #1](https://github.com/Troll-Phace/rea/pull/1); later phases remain planned and unauthorized. Follow the phase delivery workflow through a reviewable PR; merging requires approval of that concrete PR. This document grants no new authority. Repository: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea`; fork `Troll-Phace/rea`, baseline handoff `7aa4d768`, package `6.3.0`.
+Status: Phase 1 complete, accepted and merged through [PR #1](https://github.com/Troll-Phace/rea/pull/1); Phase 2 technically accepted with PR/merge delivery pending under user authorization; Phases 3–5 remain planned and unauthorized. Follow the phase delivery workflow through a reviewable PR; merging requires approval of that concrete PR. This document grants no new authority. Repository: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea`; fork `Troll-Phace/rea`, baseline handoff `7aa4d768`, package `6.3.0`.
 
 ## Outcome and boundaries
 
@@ -73,6 +73,17 @@ Phase gate: P1.1 passes all source gates; P1.2 settles the concrete loader contr
 
 ## Phase 2 — target-specific availability and deterministic import
 
+Detailed shared execution contract: [Phase 2 plan](active/phase-2-plan.md).
+The user authorized Phase 2 execution after planning; concrete PR merge approval
+remains required. The saved contract refines P2.1/P2.2 into P2-00, P2-11,
+P2-12, P2-21, P2-22 and P2-90 and governs all Phase 2 handoffs. It settles
+default-only RAM transport with a narrow admission policy, observed startup
+agreement, conservative asset fingerprints and an inventory-only PSX query
+subset. PSX-006 is closed by the actual verified default-only production policy;
+PSX-007 remains a Phase 3 provenance blocker. Required Phase 2 real-host
+acceptance is macOS; Linux implementation policy remains explicitly unverified
+until its own lane runs.
+
 Objective: open/close valid PSX through real REA/Ghidra with stable identity. Dependencies: Phase 1 accepted, PSX-006 supported-option replan and effective selected-asset identity; account for the measured register/fill/mapping limits. Defaults-only research does not establish production admission. Delivery endpoint: synthetic real open/close with honest capability scope.
 
 ### P2.1 — PSX loader inspection and profile
@@ -91,9 +102,9 @@ Owner: backend-dev, after P2.1.
 
 Owned files: edit `GhidraLauncher.ts`, `GhidraClientStartup.ts`, `GhidraClientTypes.ts`, `GhidraProvider.ts`, and `bridge/ghidra/ReaGhidraBridge.java`; extend existing launcher/client boundary tests.
 
-Transport one discriminated import configuration, avoiding contradictory DOS/PSX flags. Build exact arguments from the accepted loader contract. Compare imported language/compiler/executable facts against resolved profile before usable-session success. Preserve snapshot ownership, cancellation, startup diagnostics and cleanup. Do not mutate original bytes or GUI projects. If an added packaged pre-import script is actually necessary from P1.2, declare its creation path and package ownership before implementation; default design requires no additional script.
+Transport one discriminated import configuration, avoiding contradictory DOS/PSX flags. Build exact arguments from the accepted loader contract. Compare imported language/compiler/executable facts against resolved profile before usable-session success. Preserve snapshot ownership, cancellation, startup diagnostics and cleanup. Do not mutate original bytes or GUI projects. The shared contract requires the packaged read-only pre-analysis observer `ReaGhidraPreparePsx.java` and helper `ReaGhidraPsxImport.java`; the observer runs after import. Startup binds the analysis-success report to the owned snapshot, then validates the observer marker and authenticated agreement.
 
-Acceptance: no import starts for missing loader; import/profile disagreement fails and cleans up; synthetic real open/close retains source digest; existing DOS/native launches stay unchanged. Existing checks: `npm run test:local -- tests/boundary/providers/ghidra/ghidraLauncher.test.ts tests/boundary/providers/ghidra/ghidraClient.test.ts`; all framework gates.
+Acceptance: no import starts for missing loader; import/profile disagreement fails and cleans up; synthetic real open/close retains source digest; existing DOS/native launches stay unchanged. Existing checks: `npm run test:focused -- tests/boundary/providers/ghidra/ghidraLauncher.test.ts tests/boundary/providers/ghidra/ghidraClient.test.ts`; all framework gates.
 
 ## Phase 3 — independent PSX memory and entry evidence
 
@@ -179,10 +190,10 @@ Local issue mapping in `docs/ISSUE_LEDGER.md`: PSX-001 — Phase 1 recognition a
 
 For each future authorized implementation phase: update progress and local issue-ledger wording first; run final-content verification; create Conventional Commit, push and PR; obtain required user PR approval; merge only after that approval; verify final merged SHA and reconcile status. Approval to scaffold/plan is not approval for implementation or delivery now. Keep synthetic, boundary, macOS real-provider, Linux real-provider, local AC3 and packaged-artifact evidence distinct.
 
-Pinned toolchain is Node 24.18.0/npm 11.16.0; handoff reports Node 24.16/npm 11.13 and dependencies absent. Establish pinned versions and `npm ci` only once implementation authority exists; baseline checks are currently unrun. Read installed Turborepo documentation before altering its configuration; this plan requires no such change.
+Pinned Node 24.18.0/npm 11.16.0 and locked dependencies were established for Phase 1 under the explicitly authorized repository-local `.agent-runtime/toolchain`. Phase 1 checks and delivery evidence are recorded in PROGRESS.md; Phase 2 checks and preserved failed-run evidence are recorded in PROGRESS.md; the corrected macOS production matrix, final checks and bounded review pass; PR/approved-merge delivery remains pending. Use the existing pinned toolchain without installing unrelated software. Read installed Turborepo documentation before altering its configuration; this plan requires no such change.
 
 ## Risks and next action
 
-Loader discovery/class identity and effective options are Phase 1 blockers, not guessed constants. Loss of FileBytes provenance requires explicit unsupported coverage or a producer-boundary fix. Relevant SDK assets may alter analysis and must participate in profile identity. Delay-slot/p-code behavior requires actual synthetic decoding. Linux evidence is unavailable until run. The AC3 smoke may expose decompiler limitations without implying payload import failure.
+Phase 1 measured loader/class identity and demonstrated the RAM-option failure; Phase 2 must verify the saved default-only production policy and observed startup agreement. Loss of FileBytes provenance remains PSX-007 and requires a Phase 3 producer-boundary plan. Relevant SDK assets may alter analysis and must participate in profile identity. Delay-slot/p-code behavior requires Phase 4 synthetic decoding. Linux evidence is unavailable until run. The AC3 smoke remains a Phase 5 gate and may expose decompiler limitations without implying payload import failure.
 
-Next action: obtain implementation authority for Phase 1, then establish the pinned toolchain and execute P1.1/P1.2. Do not declare any implementation or live gate complete from this planning document.
+Next action: commit/push Phase 2 and open the reviewable PR, then wait for concrete user merge approval under the reviewed contract. Phase 1 is complete; no batch rollover applies. Do not declare Phase 2 implementation or live gates complete from this planning document.

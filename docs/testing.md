@@ -498,6 +498,33 @@ truncation constraint, while leading-zero coordinates still resolve correctly.
 It has the same Ghidra/JDK prerequisites as the MZ lane. Neither lane claims DOS
 runtime or PC-98 device execution.
 
+## PSX Ghidra import — Phase 2 lane
+
+`npm run verify:ghidra:psx-import` is the scoped production-import lane defined
+by the [Phase 2 contract](active/phase-2-plan.md). It requires caller-supplied
+Ghidra with the PSX loader/language and a compatible JDK; it installs nothing.
+Generated original baseline, declared-register/fill and trailing-byte fixtures
+exercise production stdio MCP open/close and CLI load-image observations.
+Separate production provider-boundary health sessions capture authenticated
+before/after agreement for the same fixture/profile identity; they are recorded
+as distinct imports. No game or extracted AC3 inputs are accepted.
+
+Acceptance requires explicit provider/profile binding, omitted RAM overrides,
+before/after observed import agreement, unchanged source hashes and awaited
+process/project cleanup with empty owned lineage. Layout policy negatives must
+fail before provider allocation. The DOS and COM real lanes check preserved
+launch behavior. Deterministic recording-provider tests verify missing/duplicate
+assets, handshake mutations, cancellation and snapshots separately.
+
+PSX load-image verification remains unsupported and function/instruction
+operations are gated pending Phase 4. This lane cannot establish source-backed
+provenance, delay-slot semantics, game behavior, installed-package operation or
+fresh-client discovery. Required Phase 2 host acceptance is macOS; Linux remains
+unverified until its own real lane runs. [Phase 2 results](active/phase-2-results.md)
+record the passing macOS matrix separately from static, simulated-boundary and
+package-integrity checks, alongside preserved failed attempts. The dynamic
+PSX startup diagnostic-truncation negative remains unverified under PSX-008.
+
 ## Apple Interface Builder archives
 
 `npm run verify:interface-builder` compiles the source-owned AppKit XIB into a

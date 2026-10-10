@@ -5,10 +5,18 @@ import { promisify } from "node:util";
 const exec = promisify(execFile);
 const packedHopperBridge = "package/bridge/hopper_bridge.py";
 const packedGhidraBridge = "package/bridge/ghidra/ReaGhidraBridge.java";
+const packedGhidraPsxObserver =
+  "package/bridge/ghidra/ReaGhidraPreparePsx.java";
+const packedGhidraPsxHelper = "package/bridge/ghidra/ReaGhidraPsxImport.java";
 
 /** Check shipped bridge files; real-provider lanes verify runtime behavior. */
 export async function verifyPackedBridge({ workspace, tarball, packedFiles }) {
-  for (const path of [packedHopperBridge, packedGhidraBridge]) {
+  for (const path of [
+    packedHopperBridge,
+    packedGhidraBridge,
+    packedGhidraPsxObserver,
+    packedGhidraPsxHelper,
+  ]) {
     if (!packedFiles.includes(path)) throw new Error(`package omitted ${path}`);
   }
   await exec("tar", ["-xf", tarball, "-C", workspace]);

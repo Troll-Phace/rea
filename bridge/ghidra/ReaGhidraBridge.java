@@ -155,6 +155,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
     private DecompInterface decompiler;
     private final ReaGhidraExtensions analysisExtensions = new ReaGhidraExtensions();
     private static AddressSpace sessionDefaultAddressSpace;
+    private JsonObject psxImportAgreement;
 
     @Override
     public void run() throws Exception {
@@ -164,6 +165,14 @@ public final class ReaGhidraBridge extends HeadlessScript {
         }
         Path descriptorPath = Path.of(arguments[0]);
         SessionDescriptor descriptor = readDescriptor(descriptorPath);
+        if (descriptor.psxImport != null) {
+            JsonObject psxDescriptor = ReaGhidraPsxImport.readDescriptor(descriptorPath);
+            if (currentProgram == null) throw new IllegalStateException("REA PSX bridge requires an imported program");
+            psxImportAgreement = ReaGhidraPsxImport.agreement(descriptorPath, psxDescriptor, currentProgram, monitor);
+        }
+        else if (currentProgram != null && currentProgram.getLanguageID().getIdAsString().equals("PSX:LE:32:default")) {
+            throw new IllegalStateException("PSX import requires observed startup agreement");
+        }
         // Windows retains a native immutable bearer descriptor lease until
         // runtime_close; POSIX removes it after this read. Normal cleanup removes
         // the Windows file, while abrupt owner death can leave private residue.
@@ -421,6 +430,7 @@ public final class ReaGhidraBridge extends HeadlessScript {
                 .toArray(String[]::new)
         ));
         result.add("target", target);
+        if (psxImportAgreement != null) result.add("psx_import", psxImportAgreement);
         JsonArray extensions = analysisExtensions.reports();
         if (extensions.size() > 0) result.add("analysis_extensions", extensions);
         return result;
@@ -3213,6 +3223,12 @@ public final class ReaGhidraBridge extends HeadlessScript {
         Set<String> keys = new HashSet<>(DESCRIPTOR_KEYS);
         if (parsed.isJsonObject() && parsed.getAsJsonObject().has("analysis_extensions"))
             keys.add("analysis_extensions");
+        if (parsed.isJsonObject() && parsed.getAsJsonObject().has("target_path"))
+            keys.add("target_path");
+        if (parsed.isJsonObject() && parsed.getAsJsonObject().has("psx_import")) {
+            keys.add("psx_import");
+            keys.add("target_path");
+        }
         JsonObject object = requireObject(parsed, keys);
         return new SessionDescriptor(
             requireString(object, "transport"),
@@ -3222,7 +3238,8 @@ public final class ReaGhidraBridge extends HeadlessScript {
             requireSha256(object, "target_sha256"),
             requireString(object, "provider_version"),
             requireString(object, "profile_digest"),
-            object.has("analysis_extensions") ? object.getAsJsonArray("analysis_extensions") : new JsonArray()
+            object.has("analysis_extensions") ? object.getAsJsonArray("analysis_extensions") : new JsonArray(),
+            object.has("psx_import") ? object.getAsJsonObject("psx_import") : null
         );
     }
 
@@ -3416,7 +3433,8 @@ public final class ReaGhidraBridge extends HeadlessScript {
         String targetSha256,
         String providerVersion,
         String profileDigest,
-        JsonArray analysisExtensions
+        JsonArray analysisExtensions,
+        JsonObject psxImport
     ) {}
     private record Request(int id, String method, JsonObject params) {}
 

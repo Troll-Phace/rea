@@ -23,6 +23,12 @@ import { type AnalysisError } from "../domain/analysisErrorBase.js";
 import { ProviderAdapterError } from "../domain/providerAdapterError.js";
 import { err, ok, type Result } from "../domain/result.js";
 import type { Logger } from "pino";
+import { z } from "zod";
+import {
+  psxImportCommitmentSchema,
+  type GhidraImportConfiguration,
+  type GhidraPsxStartupExpectation,
+} from "./GhidraImportConfiguration.js";
 import { GhidraClient } from "./GhidraClient.js";
 import type { GhidraClientOptions } from "./GhidraClientTypes.js";
 import {
@@ -45,6 +51,8 @@ import { attestGhidraNativeLoadImage } from "./GhidraLoadImageAttest.js";
 import {
   GHIDRA_PROVIDER_IDENTITY,
   healthLimitations,
+  psxImportLimitations,
+  psxFunctionUnavailableReason,
   windowsP0Limitations,
   limitationsFor,
 } from "./GhidraProviderCapabilities.js";
@@ -104,6 +112,72 @@ export const createGhidraProviderClient = (input: {
       }),
     );
   const extensions = extensionProfile.data;
+  let importConfiguration: GhidraImportConfiguration =
+    target.format === "dos-mz"
+      ? { kind: "dos-mz" }
+      : target.format === "dos-com"
+        ? { kind: "dos-com" }
+        : { kind: "automatic" };
+  let psxImport: GhidraPsxStartupExpectation | undefined;
+  if (target.format === "ps-x-exe") {
+    const commitment = psxImportCommitmentSchema.safeParse({
+      ...((committedProfile.parameters.psx_import ?? {}) as Record<
+        string,
+        unknown
+      >),
+      source_snapshot_path: target.path,
+    });
+    const assets = z
+      .array(
+        z
+          .object({
+            relative_path: z.string().min(1),
+            file_bytes: z.number().int().nonnegative().safe(),
+            sha256: z.string().regex(/^[a-f0-9]{64}$/u),
+          })
+          .strict(),
+      )
+      .safeParse(committedProfile.parameters.psx_asset_inventory);
+    const language = z
+      .array(
+        z
+          .object({
+            relative_path: z.string().min(1),
+            sha256: z.string().regex(/^[a-f0-9]{64}$/u),
+          })
+          .strict(),
+      )
+      .safeParse(committedProfile.parameters.psx_language_assets);
+    const analyzers = z
+      .array(z.string().min(1))
+      .safeParse(committedProfile.parameters.psx_analyzer_classes);
+    if (
+      !commitment.success ||
+      !assets.success ||
+      !language.success ||
+      !analyzers.success ||
+      installation.status !== "available" ||
+      extensions.length > 0 ||
+      commitment.data.source_sha256 !== target.sha256
+    )
+      return unavailableClient(
+        new ProviderAdapterError("ghidra", "open_binary", {
+          diagnostics: {
+            reason:
+              "PSX requires a resolved complete import profile without NativeAOT extensions.",
+          },
+        }),
+      );
+    importConfiguration = { kind: "psx", commitment: commitment.data };
+    psxImport = {
+      commitment: commitment.data,
+      installationRoot: installation.installDir,
+      assets: assets.data,
+      languageAssets: language.data,
+      analyzerClasses: analyzers.data,
+    };
+  }
+
   const invalidProfile = validateGhidraExtensionProfile(
     extensions,
     config,
@@ -142,8 +216,7 @@ export const createGhidraProviderClient = (input: {
       bridgeScriptPath: fileURLToPath(
         new URL("../../bridge/ghidra/ReaGhidraBridge.java", import.meta.url),
       ),
-      ...(target.format === "dos-mz" ? { dosMz: true } : {}),
-      ...(target.format === "dos-com" ? { dosCom: true } : {}),
+      importConfiguration,
       platform: installation.platform,
       ...(extensions.length === 0 ? {} : { analysisExtensions: extensions }),
     }),
@@ -158,6 +231,13 @@ export const createGhidraProviderClient = (input: {
         : "unix-socket",
     providerVersion: prerequisites.value.providerVersion,
     profileDigest: committedProfile.digest,
+    ...(psxImport === undefined
+      ? {}
+      : {
+          psxImport,
+          expectedLanguageId: "PSX:LE:32:default",
+          expectedCompilerSpecId: "default",
+        }),
     ...(["dos-mz", "dos-com"].includes(target.format)
       ? {
           expectedLanguageId: "x86:LE:16:Real Mode",
@@ -192,12 +272,21 @@ export const createGhidraProviderClient = (input: {
   const sessionLimitations = [
     ...providerLimitations,
     ...targetLimitations,
+    ...(psxImport === undefined ? [] : psxImportLimitations),
     ...ghidraExtensionLimitations(extensions),
     ...(releaseLimitation === undefined ? [] : [releaseLimitation]),
   ];
   return {
     execute: async (operation, parameters, options) => {
       if (extensionFailure !== undefined) return err(extensionFailure);
+      if (target.format === "ps-x-exe" && isGhidraFunctionOperation(operation))
+        return err(
+          new AnalysisCapabilityUnavailableError(
+            "ghidra",
+            operation,
+            psxFunctionUnavailableReason,
+          ),
+        );
       if (
         operation !== "health" &&
         !isGhidraInventoryOperation(operation) &&
