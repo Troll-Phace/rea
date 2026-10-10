@@ -17,8 +17,8 @@ load-image, PSX import, DOS/COM, direct PSX G1/G2 and full host-native G4. R8's
 auxiliary AArch64 ELF relocatable fixture passed independent compilation,
 focused provider proof and every unchanged public alias/name/address/xrefs/
 annotation check. Main host Mach-O controls passed separately. All failed
-predecessors remain preserved below. Final configured checks and the single bounded close review passed; commit/PR
-and approved merge remain pending. Phase 4 delivery completion is not yet claimed.
+predecessors remain preserved below. Final configured checks and the single bounded close review passed; [PR #4](https://github.com/Troll-Phace/rea/pull/4)
+is open; approved merge remains pending. Phase 4 delivery completion is not yet claimed.
 
 This lane is real direct production-provider evidence on macOS. Real public
 PSX CLI/stdio MCP operation journeys, Linux, installed-package/fresh-client
@@ -550,8 +550,8 @@ combined 54-test checkpoint while retaining its historical result; the separate
 136-test source and 117-test generic regression results remain valid.
 
 Required Phase 4 native gates pass within these bounds. Final configured
-static/docs checks and the single bounded close review pass. Authorized
-commit/PR and approved merge remain pending; no delivery completion or Phase 5
+static/docs checks and the single bounded close review pass. Reviewable
+PR delivery is recorded below; approved merge remains pending; no delivery completion or Phase 5
 acceptance claim is made.
 
 ## Final checks and bounded close review
@@ -572,5 +572,8 @@ It passed with no code findings or unconfirmed defect suspicions. The native
 undecodable wording and auxiliary fixture coverage were corrected during final
 documentation reconciliation. No extra code review or new native run is inferred.
 PSX-009 meets its technical closure criteria and is closed; PSX-008 and PSX-010
-remain deferred. Technical acceptance passed on 2026-10-10; reviewable PR and
-approved merge remain pending.
+remain deferred. Technical acceptance passed on 2026-10-10. Implementation commit
+`d1947f50c7d6c9713b51dc76a3b9dca8db5ebfc5` was pushed with normal hooks and [PR #4](https://github.com/Troll-Phace/rea/pull/4)
+is open and attached. Runtime/source/helper/test contents remain equal to the
+measured native run; final documentation-only reconciliation does not revise its
+historical fingerprints. Concrete approval and verified merge remain pending.

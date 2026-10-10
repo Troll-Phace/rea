@@ -1,6 +1,6 @@
 # PS-X EXE support — phased implementation plan
 
-Status: Phase 1 complete, accepted and merged through [PR #1](https://github.com/Troll-Phace/rea/pull/1); Phase 2 complete, accepted and merged through approved [PR #2](https://github.com/Troll-Phace/rea/pull/2); Phase 3 complete, accepted and merged through approved [PR #3](https://github.com/Troll-Phace/rea/pull/3); Phase 4 technical acceptance and bounded close review passed; commit/PR and approved merge remain pending. Phase 5 remains planned and unauthorized. Follow the phase delivery workflow through a reviewable PR; merging requires approval of that concrete PR. This document grants no new authority. Repository: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea`; fork `Troll-Phace/rea`, baseline handoff `7aa4d768`, package `6.3.0`.
+Status: Phase 1 complete, accepted and merged through [PR #1](https://github.com/Troll-Phace/rea/pull/1); Phase 2 complete, accepted and merged through approved [PR #2](https://github.com/Troll-Phace/rea/pull/2); Phase 3 complete, accepted and merged through approved [PR #3](https://github.com/Troll-Phace/rea/pull/3); Phase 4 technical acceptance and bounded close review passed; [PR #4](https://github.com/Troll-Phace/rea/pull/4) is open; approved merge remains pending. Phase 5 remains planned and unauthorized. Follow the phase delivery workflow through a reviewable PR; merging requires approval of that concrete PR. This document grants no new authority. Repository: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea`; fork `Troll-Phace/rea`, baseline handoff `7aa4d768`, package `6.3.0`.
 
 ## Outcome and boundaries
 
@@ -148,7 +148,7 @@ acceptance; full public PSX operation/installed-package/game lanes remain Phase 
 completed on 2026-10-10; the user then authorized Phase 4 execution.
 Implementation, G1/G2, public adapter/snapshot tests, required real synthetic
 regressions, final configured checks and the single bounded close review passed.
-Commit/PR delivery is pending; concrete PR approval is required before merge. Local issue PSX-004 is in progress.
+[PR #4](https://github.com/Troll-Phace/rea/pull/4) is open at implementation commit `d1947f50c7d6c9713b51dc76a3b9dca8db5ebfc5`; concrete PR approval is required before merge. Local issue PSX-004 is in progress.
 
 Objective: useful existing queries without x86-derived assumptions or unsupported runtime claims. Dependencies: Phase 3; Phase 1 already completed generic identity propagation. Delivery endpoint: complete source/boundary contracts and real synthetic operation assertions ready for full public lane.
 
