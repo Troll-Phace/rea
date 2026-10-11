@@ -595,6 +595,49 @@ and required PSX/DOS/COM/host-native regressions are recorded in
 operation journeys, Linux, game smoke and installed-package/fresh-client
 acceptance remain Phase 5. Package integrity alone does not establish them.
 
+<a id="psx-phase-5"></a>
+
+## PSX public workflows and package acceptance — Phase 5
+
+The [Phase 5 contract](active/phase-5-plan.md) separates real compiled CLI and
+stdio MCP journeys from direct-provider and simulated boundary evidence.
+The implementation adds `npm run verify:ghidra:psx` for the original synthetic
+fixture and `npm run verify:ghidra:psx:package` for the same workflow through an
+isolated installed local tarball. Select absolute `GHIDRA_INSTALL_DIR` and
+`JAVA_HOME` pointing to an existing compatible installation; these lanes install
+no provider or unrelated software. Run each host independently.
+
+The public lane requires all fixed instruction words and six delay slots,
+function/decompile/reference facts, actual advertised schema validation,
+source/profile-bound snapshots and atomic stale-identity rejection. Actual
+allocation-coordinated cancellation and awaited settlement are required.
+Capture raw results before assertions; preserve primary, capture, postcheck and
+cleanup failures separately. A retry does not erase a failure. Successful close
+requires absence of exact owned roots, retained ownership settled and verified
+empty process lineage. Freeze tracked writers while a run fingerprints source.
+
+The package lane verifies the exact tarball and installed Java/JS/skill resources,
+launches from an unrelated owned cwd and admits no source-tree fallback. Generic
+`npm run verify:package` and `npm pack --dry-run` remain separate integrity
+checks. Neither catalog validity nor packed file presence proves actual PSX use.
+
+After local synthetic success, `node scripts/verify-local-ghidra-psx.mjs --binary
+/absolute/path/to/boot.exe` performs the bounded private smoke. It rechecks the
+actual header/hash and records partial unavailable analysis honestly. It never
+uses game bytes as synthetic fixtures or copies raw game evidence into versioned
+docs. The selected Load Word patched AC3 Disc 1 image proves only that input,
+not retail originals, other discs, overlays or runtime behavior.
+
+Fresh-client broad/direct/negative scenarios use the verified installed package
+and original synthetic input. Record actual discovery, tool arguments, errors,
+Evidence and answers; schema checks and helper/hook stamps cannot replace them.
+The three actual client scenarios pass on the recorded macOS client. Linux is
+unverified and optional under the user-approved P5-R18 completion scope; it no
+longer blocks Phase 5 completion. Retain platform-specific evidence and claims.
+See the [PSX guide](ghidra-psx.md) and [results](active/phase-5-results.md) for the
+current measured rows and remaining gates. Full Phase 5 closure requires all
+required gates or an explicit user-approved scope revision.
+
 ## Apple Interface Builder archives
 
 `npm run verify:interface-builder` compiles the source-owned AppKit XIB into a

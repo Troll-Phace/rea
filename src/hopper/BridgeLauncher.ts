@@ -240,6 +240,9 @@ export class HopperApplicationLauncher implements BridgeLauncher {
         process: started.process,
         ownsProcessLifetime: true as const,
         ownership: started.ownership,
+        ...(started.cleanupReceipt === undefined
+          ? {}
+          : { cleanupReceipt: started.cleanupReceipt }),
         cleanup,
         launcherCommand: linuxDemo?.command ?? this.options.launcherPath,
         ...(lease === undefined ? {} : { releaseLease: () => lease.release() }),

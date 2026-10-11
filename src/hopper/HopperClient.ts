@@ -370,6 +370,34 @@ export class HopperClient {
     }
     this.#resources.launch = launched.value;
     this.#attachLauncher(launched.value);
+    const observation = this.#resources.processSupervisor?.observation();
+    if (observation?.coverage !== "complete")
+      return this.#startupFailure(
+        new HopperStartError({
+          cause: new Error(
+            "Hopper launcher diagnostics before acquisition are unavailable",
+          ),
+        }),
+      );
+    if (observation.errors.length !== 0)
+      return this.#startupFailure(
+        new HopperStartError({
+          cause: new AggregateError(
+            observation.errors,
+            "Hopper launcher acquisition errors",
+          ),
+        }),
+      );
+    if (
+      observation.actualExit !== undefined &&
+      launched.value.providerLifetime === "launcher-process"
+    )
+      return this.#startupFailure(
+        new HopperProcessError(
+          observation.actualExit.code,
+          this.#launcherFailureDiagnostic,
+        ),
+      );
     const ownership = launched.value.ownership;
     if (ownership !== undefined) {
       try {
@@ -745,6 +773,23 @@ export class HopperClient {
     this.#resources.processSupervisor = new ProviderProcessSupervisor(launch, {
       onDiagnostic: (event) => this.#onLauncherDiagnostic(launch, event),
     });
+    const observation = this.#resources.processSupervisor.observation();
+    for (const error of observation.errors)
+      this.#logger.warn(
+        { message: error.message },
+        "Hopper launcher process emitted an acquisition error",
+      );
+    if (observation.actualExit !== undefined) {
+      this.#launcherExitCode = observation.actualExit.code;
+      // Pure classification from retained exit facts and complete current diagnostics; no callback replay.
+      this.#launcherFailureDiagnostic = hopperLauncherFailureDiagnostic({
+        type: "exit",
+        ...observation.actualExit,
+        snapshot: observation.snapshot,
+      });
+      if (launch.providerLifetime === "launcher-process")
+        this.#rememberExit(observation.actualExit.code);
+    }
   }
 
   #onLauncherDiagnostic(

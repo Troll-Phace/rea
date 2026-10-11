@@ -8,7 +8,9 @@
     "src/application/RealHopperAssertions.ts",
     "tests/processOwnershipRunner.ts",
     "scripts/probe-ghidra-psx-loader.mjs",
-    "scripts/verify-real-ghidra-psx-operations.mjs"
+    "scripts/verify-real-ghidra-psx-operations.mjs",
+    "scripts/verify-local-ghidra-psx.mjs",
+    "scripts/verify-real-ghidra-psx-bookmarks.mjs"
   ],
   "project": ["src/**/*.ts", "tests/**/*.ts", "scripts/**/*.mjs"],
   "vitepress": {

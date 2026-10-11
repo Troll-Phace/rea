@@ -135,8 +135,24 @@ export const runWakaruCommand = async (context: WakaruCommandContext) => {
       },
     },
   );
+  const observation = supervisor.observation();
+  oversized ||=
+    observation.observedBytes.stdout > RECOVERY_LIMITS.reportBytes ||
+    observation.observedBytes.stderr > RECOVERY_LIMITS.reportBytes;
   let failure: unknown;
   try {
+    if (observation.coverage !== "complete")
+      throw new ProviderAdapterError("wakaru", OPERATION, {
+        diagnostics: {
+          reason:
+            "Wakaru diagnostics before process acquisition are unavailable",
+        },
+      });
+    if (observation.errors.length !== 0)
+      throw new ProviderAdapterError("wakaru", OPERATION, {
+        cause: observation.errors[0],
+        diagnostics: { reason: "Wakaru process emitted an acquisition error" },
+      });
     while (!(await supervisor.waitForOutputClose(100))) {
       checkRecoveryDeadline(context.deadline, context.signal);
       if (oversized)
@@ -148,6 +164,12 @@ export const runWakaruCommand = async (context: WakaruCommandContext) => {
         await inventoryRecoveryFiles(context.staging, context.signal);
     }
     checkRecoveryDeadline(context.deadline, context.signal);
+    const captureErrors = supervisor.observation().errors;
+    if (captureErrors.length !== 0)
+      throw new ProviderAdapterError("wakaru", OPERATION, {
+        cause: new AggregateError(captureErrors, "Wakaru capture errors"),
+        diagnostics: { reason: "Wakaru diagnostic capture failed" },
+      });
     if (oversized)
       throw new AnalysisOutputError(
         OPERATION,

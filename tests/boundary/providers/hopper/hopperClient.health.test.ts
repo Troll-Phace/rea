@@ -9,6 +9,7 @@ import type {
   BridgeSession,
 } from "../../../../src/hopper/BridgeLauncher.js";
 import { HopperClient } from "../../../../src/hopper/HopperClient.js";
+import { acquireProviderProcessObservation } from "../../../../src/process/ProviderProcess.js";
 import { HopperFixtureLauncher } from "./hopperClient.fixture.js";
 
 class ObservedProcess extends EventEmitter {
@@ -37,6 +38,7 @@ class LifecycleLauncher implements BridgeLauncher {
 
   async launch(session: BridgeSession) {
     this.observed = new ObservedProcess();
+    acquireProviderProcessObservation(this.observed);
     await this.fixture.launch(session);
     return ok({
       process: this.observed,

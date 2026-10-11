@@ -31,6 +31,7 @@ import { registerJavaScriptRuntimeObservationCommands } from "./cliJavaScriptRun
 import { registerApplicationCommands } from "./cli/applicationCommands.js";
 import { presentOmittableDefaults } from "./cli/omittableDefaults.js";
 import type { CliInstance } from "./cli/types.js";
+import type { CliCleanupScope } from "./composition/CliCleanupScope.js";
 import {
   streamCliCommandResults,
   type CliResultOutput,
@@ -46,9 +47,10 @@ export const createCli = (
     Record<string, string | undefined>
   > = process.env,
   resultOutput?: CliResultOutput,
+  cleanupScope?: CliCleanupScope,
 ): CliInstance => {
   const environment = snapshotEnvironment(selectedEnvironment);
-  const analysis = createDirectAnalysis(environment);
+  const analysis = createDirectAnalysis(environment, cleanupScope);
   const logger = createLogger(
     "cli",
     environment.REA_LOG_LEVEL === undefined
@@ -72,7 +74,7 @@ export const createCli = (
   registerEvmCommands(cli, logger, environment);
   registerArtifactCommands(cli, logger, analysis.runProviderAnalysis);
   registerManagedCommands(cli, logger, analysis.runProviderAnalysis);
-  registerAndroidCommands(cli, logger, environment);
+  registerAndroidCommands(cli, logger, environment, cleanupScope);
   registerFirmwareCommands(cli, logger, environment);
   registerBinaryDiagnosticsCommands(cli, logger, environment);
   registerAnalysisViewCommands(cli, logger);

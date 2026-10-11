@@ -468,6 +468,7 @@ export class GhidraClient {
         this.#process = new ProviderProcessSupervisor(partialLaunch, {
           onDiagnostic: (event) => this.#onProcessDiagnostic(event),
         });
+        this.#retainAcquiredProcessFacts();
       }
       const failure = deadline.signal.aborted
         ? this.#interruptionFailure(deadline, launched.error)
@@ -480,6 +481,30 @@ export class GhidraClient {
     this.#process = new ProviderProcessSupervisor(launched.value, {
       onDiagnostic: (event) => this.#onProcessDiagnostic(event),
     });
+    this.#retainAcquiredProcessFacts();
+    const observation = this.#process.observation();
+    if (observation.coverage !== "complete")
+      return this.#startupFailure(
+        this.#failure(
+          "process",
+          "Ghidra process diagnostics before acquisition are unavailable",
+        ),
+      );
+    if (observation.errors.length !== 0)
+      return this.#startupFailure(
+        this.#failure(
+          "process",
+          "Ghidra launcher diagnostic capture failed",
+          new AggregateError(observation.errors, "Ghidra acquisition errors"),
+        ),
+      );
+    if (observation.actualExit !== undefined)
+      return this.#startupFailure(
+        this.#failure(
+          "process",
+          "Ghidra process exited before launcher publication",
+        ),
+      );
     const connected = await this.#connect(endpoint, deadline);
     if (!connected.ok) {
       const failure = connected.error;
@@ -968,6 +993,17 @@ export class GhidraClient {
     for (const token of this.#authenticationTokens)
       value = value.replaceAll(token, "[REDACTED]");
     return value;
+  }
+
+  #retainAcquiredProcessFacts(): void {
+    const observation = this.#process?.observation();
+    if (observation === undefined) return;
+    this.#processSnapshot = observation.snapshot;
+    for (const error of observation.errors)
+      this.#logger.warn(
+        { message: error.message },
+        "Ghidra process emitted an acquisition error",
+      );
   }
 
   #onProcessDiagnostic(event: ProviderProcessDiagnostic): void {

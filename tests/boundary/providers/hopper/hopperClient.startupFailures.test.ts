@@ -12,20 +12,21 @@ import type {
 } from "../../../../src/hopper/BridgeLauncher.js";
 import { HopperClient } from "../../../../src/hopper/HopperClient.js";
 import { LINUX_PRIVATE_DISPLAY_DIAGNOSTIC_PREFIX } from "../../../../src/hopper/LinuxPrivateDisplayDiagnostic.js";
+import { acquireProviderProcessObservation } from "../../../../src/process/ProviderProcess.js";
 
 import { HopperFixtureLauncher as FixtureLauncher } from "./hopperClient.fixture.js";
 
 class SilentLauncher implements BridgeLauncher {
   launch() {
+    const child = spawn(
+      process.execPath,
+      ["-e", "setInterval(() => {}, 1000)"],
+      { stdio: ["ignore", "ignore", "pipe"] },
+    );
+    acquireProviderProcessObservation(child);
     return Promise.resolve(
       ok({
-        process: spawn(
-          process.execPath,
-          ["-e", "setInterval(() => {}, 1000)"],
-          {
-            stdio: ["ignore", "ignore", "pipe"],
-          },
-        ),
+        process: child,
         ownsProcessLifetime: true as const,
         providerLifetime: "launcher-process" as const,
         shutdownMode: "bridge-request" as const,
@@ -59,11 +60,17 @@ class ExitingLauncher implements BridgeLauncher {
   ) {}
 
   launch() {
+    const child = spawn(
+      process.execPath,
+      ["-e", `process.exit(${this.code})`],
+      {
+        stdio: ["ignore", "ignore", "pipe"],
+      },
+    );
+    acquireProviderProcessObservation(child);
     return Promise.resolve(
       ok({
-        process: spawn(process.execPath, ["-e", `process.exit(${this.code})`], {
-          stdio: ["ignore", "ignore", "pipe"],
-        }),
+        process: child,
         ownsProcessLifetime: this.ownsProcessLifetime,
         providerLifetime: this.ownsProcessLifetime
           ? ("launcher-process" as const)
@@ -93,16 +100,18 @@ class DiagnosticExitingLauncher implements BridgeLauncher {
       xvfb_stderr_bytes: 100,
     };
     const line = `${LINUX_PRIVATE_DISPLAY_DIAGNOSTIC_PREFIX}${JSON.stringify(diagnostic)}\n`;
+    const child = spawn(
+      process.execPath,
+      [
+        "-e",
+        `process.stderr.write(${JSON.stringify(line)}, () => process.exit(80))`,
+      ],
+      { stdio: ["ignore", "ignore", "pipe"] },
+    );
+    acquireProviderProcessObservation(child);
     return Promise.resolve(
       ok({
-        process: spawn(
-          process.execPath,
-          [
-            "-e",
-            `process.stderr.write(${JSON.stringify(line)}, () => process.exit(80))`,
-          ],
-          { stdio: ["ignore", "ignore", "pipe"] },
-        ),
+        process: child,
         ownsProcessLifetime: true as const,
         providerLifetime: "launcher-process" as const,
         shutdownMode: "bridge-request" as const,

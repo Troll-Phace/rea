@@ -326,11 +326,14 @@ const ownedGhidraProcess = (
   platform: NodeJS.Platform,
 ): Pick<
   Extract<ProviderProcessLaunch, { readonly ownsProcessLifetime: true }>,
-  "process" | "ownsProcessLifetime" | "ownership" | "cleanup"
+  "process" | "ownsProcessLifetime" | "ownership" | "cleanup" | "cleanupReceipt"
 > => ({
   process: spawned.process,
   ownsProcessLifetime: true,
   ownership: spawned.ownership,
+  ...(spawned.cleanupReceipt === undefined
+    ? {}
+    : { cleanupReceipt: spawned.cleanupReceipt }),
   cleanup: () => cleanupStartedProcess(spawned, platform),
 });
 

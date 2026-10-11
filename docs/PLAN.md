@@ -1,6 +1,6 @@
 # PS-X EXE support — phased implementation plan
 
-Status: Phase 1 complete, accepted and merged through [PR #1](https://github.com/Troll-Phace/rea/pull/1); Phase 2 complete, accepted and merged through approved [PR #2](https://github.com/Troll-Phace/rea/pull/2); Phase 3 complete, accepted and merged through approved [PR #3](https://github.com/Troll-Phace/rea/pull/3); Phase 4 complete, accepted and merged through approved [PR #4](https://github.com/Troll-Phace/rea/pull/4). Phase 5 remains planned and unauthorized. Follow the phase delivery workflow through a reviewable PR; merging requires approval of that concrete PR. This document grants no new authority. Repository: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea`; fork `Troll-Phace/rea`, baseline handoff `7aa4d768`, package `6.3.0`.
+Status: Phase 1 complete, accepted and merged through [PR #1](https://github.com/Troll-Phace/rea/pull/1); Phase 2 complete, accepted and merged through approved [PR #2](https://github.com/Troll-Phace/rea/pull/2); Phase 3 complete, accepted and merged through approved [PR #3](https://github.com/Troll-Phace/rea/pull/3); Phase 4 complete, accepted and merged through approved [PR #4](https://github.com/Troll-Phace/rea/pull/4). Phase 5 execution is authorized and in progress. Follow the phase delivery workflow through a reviewable PR; merging requires approval of that concrete PR. This document grants no new authority. Repository: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea`; fork `Troll-Phace/rea`, baseline handoff `7aa4d768`, package `6.3.0`.
 
 ## Outcome and boundaries
 
@@ -176,6 +176,17 @@ Acceptance: focused new tests and existing Ghidra routing/evidence/snapshot test
 
 ## Phase 5 — real public workflows, local AC3 smoke, package and docs
 
+Detailed shared execution contract: [Phase 5 plan](active/phase-5-plan.md).
+The saved contract refines P5.1/P5.2/P5.3 into P5-00/P5-11/P5-12/P5-21/P5-31/P5-90
+and governs all Phase 5 implementor/reviewer handoffs. It separates real public
+macOS/Linux journeys, explicit local patched-AC3 smoke, installed-tarball
+acceptance and fresh-client discovery. The user authorized execution of the
+reviewed contract on 2026-10-10. The user-approved P5-R18 scope removes Linux
+from completion criteria while preserving its unverified status. Required macOS
+source/installed, local patched-AC3, three actual fresh-client scenarios, native
+regressions and bounded reviews pass; Phase 5 and PSX-005 remain open for PR and
+approved merge delivery. PSX-008 and PSX-010 remain deferred.
+
 Objective: establish actual support with separated evidence lanes. Dependencies: Phase 4. Delivery endpoint: supported host/version matrix verified, packaging complete, source unchanged, no hidden live gates.
 
 ### P5.1 — real synthetic CLI/MCP lane
@@ -184,7 +195,7 @@ Owner: test-engineer.
 
 Owned files: Create `scripts/verify-real-ghidra-psx.mjs`; edit `package.json` to add proposed `verify:ghidra:psx`; extend `tests/conformance/ghidra/README.md`; reuse existing real-Ghidra lifecycle/boundary helpers where appropriate.
 
-Proposed command after creation: `npm run verify:ghidra:psx`. It builds the runtime and runs generated original fixtures through public compiled CLI and MCP, checking mapping/instruction/function/reference assertions, snapshot lifecycle, cancellation, source immutability, and awaited cleanup. Run independently on macOS and Linux. Record runtime, host, Ghidra, Java, loader/assets fingerprints, target hashes, commands, and outcomes. Missing Linux execution remains a named pending support gate, never inferred from macOS or fake providers.
+Proposed command after creation: `npm run verify:ghidra:psx`. It builds the runtime and runs generated original fixtures through public compiled CLI and MCP, checking mapping/instruction/function/reference assertions, snapshot lifecycle, cancellation, source immutability, and awaited cleanup. Required execution is macOS under user-approved P5-R18; any Linux execution is optional. Record runtime, host, Ghidra, Java, loader/assets fingerprints, target hashes, commands, and outcomes. Linux remains unverified and is never inferred from macOS or fake providers.
 
 ### P5.2 — bounded local AC3 smoke
 
@@ -220,4 +231,4 @@ Pinned Node 24.18.0/npm 11.16.0 and locked dependencies were established for Pha
 
 Phase 1 measured loader/class identity and demonstrated the RAM-option failure; Phase 2 verified the saved default-only production policy and observed startup agreement. Phase 3 closed PSX-007 through measured REA-adapted FileBytes provenance, independent mutations and preservation/rollback evidence; original-loader lineage remains absent. Relevant SDK assets may alter analysis and must participate in profile identity. Delay-slot/p-code behavior requires Phase 4 synthetic decoding. Linux evidence is unavailable until run. The AC3 smoke remains a Phase 5 gate and may expose decompiler limitations without implying payload import failure.
 
-Next action: execute the authorized [Phase 4 contract](active/phase-4-plan.md). Phases 1–3 are complete; Phase 5 remains unauthorized and no batch rollover applies. Linux and later-phase live gates remain unverified.
+Next action: execute the authorized [Phase 5 contract](active/phase-5-plan.md). Phases 1–4 are complete; Phase 5 is in progress and no batch rollover applies. Linux, local patched-AC3, installed-package and fresh-client gates remain unverified.

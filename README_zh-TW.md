@@ -152,6 +152,8 @@ REA 需要 Node.js 22.x（>=22.19）、24.x（>=24.11）或 26+，以及 npm。�
 
 不同提供者支援的原生格式和主機系統有所不同。請參閱 [Hopper 與 Ghidra 設定](docs/installation.md#hopper)、[IDA 指南](docs/ida-provider.md)和[實驗性 Windows Ghidra 支援](docs/windows-ghidra-p0.md)。Ghidra 也支援 [16 位 DOS 分析](docs/ghidra-dos.md)。提供者選擇見 [CLI 指南](docs/cli.md#choose-a-provider)。對於最新 npm 版本發佈後新增的功能，請查看[發佈可用性](docs/installation.md#released-package-and-main)。
 
+PS-X EXE (Ghidra): [指南](docs/ghidra-psx.md).
+
 ## 案例
 
 [![DX-Ball 聲音平移、Notion 剪貼簿橋接與 TH04 彈幕環案例的插圖](docs/assets/rea-showcases.png)](https://rea.tools/showcase/)

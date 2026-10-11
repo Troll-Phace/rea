@@ -223,6 +223,12 @@ try {
       { variant: "baseline", mode: "original-record-tamper" },
       { variant: "baseline", mode: "active-transaction" },
       { variant: "baseline", mode: "production-wrapper" },
+      { variant: "baseline", mode: "bookmarks" },
+      { variant: "baseline", mode: "bookmarks-split" },
+      { variant: "baseline", mode: "bookmarks-cancel-parking" },
+      { variant: "baseline", mode: "bookmarks-cancel-rebind" },
+      { variant: "baseline", mode: "bookmarks-cancel-return" },
+      { variant: "baseline", mode: "bookmarks-unsupported-data" },
     ]) {
       process.stderr.write(`PSX feasibility: ${test.variant}/${test.mode}\n`);
       const root = await mkdtemp(
@@ -500,7 +506,8 @@ try {
           const outputText = `${measured.process.stdout.text}\n${measured.process.stderr.text}`;
           if (
             test.mode === "rollback" ||
-            test.mode === "original-record-tamper"
+            test.mode === "original-record-tamper" ||
+            isBookmarkCancellation(test.mode)
           ) {
             assert.doesNotMatch(
               outputText,
@@ -1944,6 +1951,14 @@ function assertProbe(
   originalDigest,
 ) {
   const expected = fixture.expected;
+  if (mode.startsWith("bookmarks"))
+    assertBookmarkPreservation(
+      probe,
+      mode,
+      sourceDigest,
+      fixture,
+      originalDigest,
+    );
   assert.equal(probe.schema_version, 2);
   assert.equal(probe.mode, mode);
   assertTransactionOwnership(probe.transaction_ownership, mode);
@@ -1955,23 +1970,38 @@ function assertProbe(
   for (const key of ["before_sha256", "after_sha256"])
     assertDigest(probe.preservation[key]);
   assert.equal(probe.preservation.before_sha256, originalRecord.state_sha256);
-  if (mode === "rollback" || mode === "original-record-tamper") {
+  if (
+    mode === "rollback" ||
+    mode === "original-record-tamper" ||
+    isBookmarkCancellation(mode)
+  ) {
     assert.equal(probe.before, null);
     assert.equal(probe.after, null);
     assert.equal(probe.load_image, null);
     assert.equal(probe.failure.expected, true);
     assert.equal(
       probe.failure.kind,
-      mode === "rollback" ? "cancelled" : "original-record-invalid",
+      mode === "original-record-tamper"
+        ? "original-record-invalid"
+        : "cancelled",
     );
     assert.equal(probe.failure.marker_emitted, false);
     assert.equal(probe.failure.before_record_present, false);
-    assert.equal(probe.failure.fired_after_rebind, true);
-    assertLinkedPayload(
-      probe.failure.observation_at_fault,
-      sourceDigest,
-      fixture,
+    assert.equal(
+      probe.failure.fired_after_rebind,
+      mode !== "bookmarks-cancel-parking",
     );
+    if (mode === "bookmarks-cancel-parking")
+      assert.deepEqual(
+        probe.failure.observation_at_fault,
+        probe.rollback.observations_before,
+      );
+    else
+      assertLinkedPayload(
+        probe.failure.observation_at_fault,
+        sourceDigest,
+        fixture,
+      );
     assert.equal(probe.rollback.exercised, true);
     assert.equal(probe.rollback.matched, true);
     assert.equal(probe.rollback.original_observation_matched, true);
@@ -2007,7 +2037,7 @@ function assertProbe(
   assert.deepEqual(provenance.before.source_files, []);
   assert.equal(
     provenance.status,
-    mode === "unsupported-data" ? "unavailable" : "applied",
+    isUnsupportedData(mode) ? "unavailable" : "applied",
   );
   const metadata = provenance.metadata_preservation;
   assert.equal(
@@ -2099,8 +2129,13 @@ function assertProbe(
       "Journal probe omitted outside-payload evidence",
     );
   }
-  if (mode === "unsupported-data") {
+  if (isUnsupportedData(mode)) {
     assert.ok(provenance.reason);
+    if (mode === "bookmarks-unsupported-data")
+      assert.equal(
+        provenance.reason,
+        "Affected data definitions cannot be preserved by plain loader restoration",
+      );
     assert.deepEqual(provenance.rebound_ranges, []);
     assert.equal(changed, false);
     assert.equal(metadata.original_state_sha256, metadata.adapted_state_sha256);
@@ -2112,7 +2147,7 @@ function assertProbe(
   const rows = probe.load_image.mappings
     .filter((row) => row.source_file_index !== null)
     .sort((a, b) => Number(BigInt(a.start) - BigInt(b.start)));
-  if (mode === "split")
+  if (mode === "split" || mode === "bookmarks-split")
     assert.ok(rows.length > 1, "Split probe did not split the payload");
   assert.deepEqual(probe.load_image.psx.entry_instruction, {
     address: `0x${expected.initialPc.toString(16)}`,
@@ -2145,6 +2180,250 @@ function assertProbe(
     );
   }
 }
+function isBookmarkCancellation(mode) {
+  return mode.startsWith("bookmarks-cancel-");
+}
+function isUnsupportedData(mode) {
+  return mode === "unsupported-data" || mode === "bookmarks-unsupported-data";
+}
+function assertBookmarkState(state) {
+  assert.deepEqual(Object.keys(state).sort(), ["records", "types"]);
+  const ids = new Set(),
+    typeIds = new Set();
+  for (const type of state.types) {
+    assert.deepEqual(Object.keys(type).sort(), [
+      "color_argb",
+      "defined",
+      "has_bookmarks",
+      "icon",
+      "id",
+      "name",
+      "priority",
+    ]);
+    assert.ok(Number.isInteger(type.id));
+    assert.ok(!typeIds.has(type.id), "Duplicate bookmark type ID");
+    typeIds.add(type.id);
+    assert.equal(typeof type.name, "string");
+    assert.equal(typeof type.defined, "boolean");
+    assert.equal(typeof type.has_bookmarks, "boolean");
+    assert.ok(Number.isInteger(type.priority));
+    assert.ok(type.color_argb === null || Number.isInteger(type.color_argb));
+    assert.equal(type.icon, null);
+  }
+  for (const row of state.records) {
+    assert.deepEqual(Object.keys(row).sort(), [
+      "address",
+      "address_space",
+      "category",
+      "comment",
+      "id",
+      "type",
+      "type_id",
+    ]);
+    assert.match(row.id, /^(?:0|[1-9][0-9]*)$/u);
+    assert.ok(BigInt(row.id) <= (1n << 64n) - 1n);
+    assert.ok(!ids.has(row.id), "Duplicate bookmark ID");
+    ids.add(row.id);
+    assert.match(row.address, /^0x(?:0|[1-9a-f][a-f0-9]*)$/u);
+    for (const key of ["address_space", "category", "comment", "type"])
+      assert.equal(typeof row[key], "string");
+    assert.ok(
+      state.types.some(
+        (type) =>
+          type.id === row.type_id &&
+          type.name === row.type &&
+          type.has_bookmarks,
+      ),
+    );
+  }
+}
+function assertBookmarkSeeds(state, expected) {
+  const start = expected.payloadAddress;
+  for (const [offset, type, category, comment] of [
+    [0, "Note", "rea_probe_first", "original first 雪"],
+    [0, "Note", "rea_probe_second", "distinct category"],
+    [0, "Error", "rea_probe_first", "distinct type"],
+    [2047, "Warning", "rea_probe_last", "original last"],
+    [1024, "Info", "rea_probe_middle", "split boundary"],
+    [-1, "Note", "rea_probe_outside_before", "unaffected preceding address"],
+    [2048, "Note", "rea_probe_outside_after", "unaffected succeeding address"],
+  ]) {
+    assert.equal(
+      state.records.filter(
+        (row) =>
+          BigInt(row.address) === BigInt(start + offset) &&
+          row.type === type &&
+          row.category === category &&
+          row.comment === comment,
+      ).length,
+      1,
+      `Bookmark seed absent: ${category}/${type}`,
+    );
+  }
+}
+function assertParkedBookmarkState(before, checkpoint, expected) {
+  const current = checkpoint.bookmark_identity;
+  assertBookmarkState(current);
+  assert.deepEqual(current.types, before.types);
+  assert.equal(current.records.length, before.records.length);
+  const start = BigInt(expected.payloadAddress),
+    bytes = BigInt(expected.payloadBytes);
+  const payloadSpace = before.records.find(
+    (row) => row.category === "rea_probe_first" && row.type === "Note",
+  ).address_space;
+  let displacement;
+  for (const original of before.records) {
+    const actual = current.records.find((row) => row.id === original.id);
+    assert.ok(actual, `Original bookmark ID missing: ${original.id}`);
+    if (
+      original.address_space !== payloadSpace ||
+      !inPayload(original.address, expected)
+    ) {
+      assert.deepEqual(actual, original);
+      continue;
+    }
+    assert.deepEqual({ ...actual, address: original.address }, original);
+    assert.equal(inPayload(actual.address, expected), false);
+    const delta = BigInt(actual.address) - BigInt(original.address);
+    if (displacement !== undefined) assert.equal(delta, displacement);
+    displacement = delta;
+  }
+  assert.notEqual(
+    displacement,
+    undefined,
+    "No original affected bookmarks moved",
+  );
+  const parking = start + displacement,
+    end = parking + bytes - 1n;
+  assert.ok(parking >= 0n && end < 1n << 32n);
+  assert.ok(end < start || parking >= start + bytes);
+  for (const mapping of checkpoint.load_image.mappings)
+    if (mapping.address_space === payloadSpace)
+      assert.ok(
+        BigInt(mapping.end) < parking || BigInt(mapping.start) > end,
+        "Production parking overlaps original memory",
+      );
+  for (const original of before.records)
+    if (
+      original.address_space === payloadSpace &&
+      !inPayload(original.address, expected)
+    )
+      assert.ok(
+        BigInt(original.address) < parking || BigInt(original.address) > end,
+        "Production parking overlaps unaffected bookmark",
+      );
+}
+function assertCompleteBookmarkManifest(state) {
+  assert.deepEqual(Object.keys(state).sort(), [
+    "blocks",
+    "bookmarks",
+    "comments",
+    "context",
+    "data",
+    "default_context",
+    "default_disassembly_context",
+    "entries",
+    "equates",
+    "functions",
+    "instructions",
+    "label_history",
+    "property_maps",
+    "references",
+    "relocations",
+    "source_maps",
+    "symbols",
+    "trees",
+  ]);
+  for (const [key, value] of Object.entries(state))
+    if (key === "bookmarks")
+      assert.deepEqual(Object.keys(value).sort(), ["records", "types"]);
+    else if (key === "default_disassembly_context") {
+      if (value !== null) assert.match(value, /^(?:[a-f0-9]{2})+$/u);
+    } else
+      assert.ok(
+        Array.isArray(value),
+        `Complete state category missing: ${key}`,
+      );
+}
+function assertBookmarkPreservation(
+  probe,
+  mode,
+  sourceDigest,
+  fixture,
+  originalDigest,
+) {
+  const preservation = probe.bookmark_preservation;
+  assert.equal(preservation.schema_version, 1);
+  assert.equal(preservation.production_adaptation, true);
+  assert.equal(preservation.identity_and_type_matched, true);
+  assertBookmarkState(preservation.before);
+  assertBookmarkSeeds(preservation.before, fixture.expected);
+  assert.deepEqual(preservation.before, preservation.after);
+  assertCompleteBookmarkManifest(preservation.full_state_before);
+  assertCompleteBookmarkManifest(preservation.full_state_after);
+  const unchanged = isBookmarkCancellation(mode) || isUnsupportedData(mode);
+  if (unchanged)
+    assert.deepEqual(
+      preservation.full_state_before,
+      preservation.full_state_after,
+    );
+  else {
+    const { label_history: _beforeJournal, ...before } =
+      preservation.full_state_before;
+    const { label_history: _afterJournal, ...after } =
+      preservation.full_state_after;
+    assert.deepEqual(before, after);
+  }
+  const original = preservation.original_record_before;
+  assert.equal(typeof original.bytes_base64, "string");
+  assert.ok(
+    original.bytes_base64.length <= Math.ceil((4 * 1024 * 1024) / 3) * 4,
+  );
+  const bytes = Buffer.from(original.bytes_base64, "base64");
+  assert.equal(bytes.toString("base64"), original.bytes_base64);
+  assert.equal(digest(bytes), original.sha256);
+  assert.equal(original.sha256, originalDigest);
+  const boundaries = isUnsupportedData(mode)
+    ? []
+    : mode === "bookmarks-cancel-parking"
+      ? ["parking"]
+      : mode === "bookmarks-cancel-rebind"
+        ? ["parking", "rebind"]
+        : ["parking", "rebind", "return"];
+  assert.deepEqual(
+    preservation.checkpoints.map((row) => row.boundary),
+    boundaries,
+  );
+  for (const checkpoint of preservation.checkpoints) {
+    assert.equal(checkpoint.transaction_active, true);
+    if (checkpoint.boundary === "return")
+      assert.deepEqual(checkpoint.bookmark_identity, preservation.before);
+    else
+      assertParkedBookmarkState(
+        preservation.before,
+        checkpoint,
+        fixture.expected,
+      );
+    if (checkpoint.boundary === "parking") {
+      assert.deepEqual(checkpoint.load_image.source_files, []);
+      assert.ok(
+        checkpoint.load_image.mappings.every(
+          (row) => row.source_file_index === null,
+        ),
+      );
+    } else assertLinkedPayload(checkpoint.load_image, sourceDigest, fixture);
+  }
+  if (isBookmarkCancellation(mode)) {
+    assert.equal(
+      probe.failure.message,
+      `Controlled bookmark cancellation after ${boundaries.at(-1)}`,
+    );
+    assert.deepEqual(
+      probe.failure.observation_at_fault,
+      preservation.checkpoints.at(-1).load_image,
+    );
+  }
+}
 function assertTransactionOwnership(ownership, mode) {
   assert.deepEqual(Object.keys(ownership).sort(), [
     "after_adaptation_active",
@@ -2162,7 +2441,8 @@ function assertTransactionOwnership(ownership, mode) {
   assert.equal(ownership.setup_finalized, true);
   assert.equal(
     ownership.setup_transaction_performed,
-    ["split", "journal-multiplicity", "unsupported-data"].includes(mode),
+    ["split", "journal-multiplicity", "unsupported-data"].includes(mode) ||
+      mode.startsWith("bookmarks"),
   );
   const rejected = mode === "active-transaction";
   assert.equal(ownership.before_adaptation_active, rejected);
@@ -2171,9 +2451,10 @@ function assertTransactionOwnership(ownership, mode) {
     ownership.outcome,
     rejected
       ? "rejected-active-transaction"
-      : mode === "unsupported-data"
+      : isUnsupportedData(mode)
         ? "unavailable"
-        : ["rollback", "original-record-tamper"].includes(mode)
+        : ["rollback", "original-record-tamper"].includes(mode) ||
+            isBookmarkCancellation(mode)
           ? "rolled-back"
           : "committed",
   );

@@ -6,6 +6,10 @@ import { fileURLToPath } from "node:url";
 
 // Route production MCP before importing Incur. Incur owns registration helpers
 // such as `mcp add`, while only dist/main.js may serve the stdio tool catalog.
+// A failed terminal owner remains callable to an importing host/preload. This
+// single invocation is not a registry, and abrupt termination has no finally guarantee.
+export let retainedCliCleanup;
+
 const args = process.argv.slice(2);
 const { default: packageJson } = await import("../package.json", {
   with: { type: "json" },
@@ -29,43 +33,131 @@ if (!(await compiledRuntimeExists(runtimeFiles))) {
 } else if (isMcpMode) {
   const { runEntrypoint } = await import("../dist/main.js");
   await runEntrypoint();
-} else if (isMcpDoctorMode) {
-  const { runProductionMcpDoctorCli } = await import("../dist/mcpDoctor.js");
-  const result = await runProductionMcpDoctorCli(args.slice(2), {
-    dispatcherPath: fileURLToPath(import.meta.url),
-    packageRoot,
-  });
-  process.stdout.write(result.output);
-  process.exitCode = result.exitCode;
 } else {
-  const { createCli } = await import("../dist/cli.js");
-  const { createStreamedCliJsonOutput } =
-    await import("../dist/cli/streamedJsonOutput.js");
-  const {
-    renderCliOutputArgumentError,
-    renderEmptyFilteredCliOutput,
-    validateCliOutputArguments,
-  } = await import("../dist/cliOutput.js");
-  const outputArguments = validateCliOutputArguments(args);
-  if (!outputArguments.ok) {
-    process.stdout.write(renderCliOutputArgumentError(outputArguments));
-    process.exitCode = 1;
-  } else {
-    let wroteOutput = false;
-    const resultOutput = createStreamedCliJsonOutput(args, process.stdout);
-    await createCli(process.env, resultOutput).serve(args, {
-      stdout: (output) => {
-        if (resultOutput?.handled) {
-          if (resultOutput.failed) process.stderr.write(output);
-          return;
+  await runOrdinaryCli();
+}
+
+async function runOrdinaryCli() {
+  const { CliCleanupScope } =
+    await import("../dist/composition/CliCleanupScope.js");
+  const { closeProcessOwnershipInspection } =
+    await import("../dist/process/ProcessOwnershipObservation.js");
+  const scope = new CliCleanupScope();
+  const inspectorFailures = [];
+  const settlementFailures = [];
+  let inspectorClosed = false;
+  let primary;
+  let primaryFailed = false;
+  let receipt;
+  let finalizationAttempt;
+  const retained = {
+    scope,
+    receipt,
+    primary,
+    failures: [],
+    settled: false,
+    retry: finalize,
+  };
+
+  function finalize() {
+    if (finalizationAttempt !== undefined) return finalizationAttempt;
+    const attempt = (async () => {
+      let scopeSettled = false;
+      try {
+        receipt = await scope.settle();
+        scopeSettled = receipt.settled;
+      } catch (cause) {
+        // Unexpected settlement failure still retains the actual scope and retry.
+        settlementFailures.push(cause);
+      }
+      if (scopeSettled && !inspectorClosed) {
+        try {
+          await closeProcessOwnershipInspection();
+          inspectorClosed = true;
+        } catch (cause) {
+          inspectorFailures.push(cause);
         }
-        if (output.length > 0) wroteOutput = true;
-        process.stdout.write(output);
-      },
-    });
-    if (!wroteOutput && !resultOutput?.handled)
-      process.stdout.write(renderEmptyFilteredCliOutput(args) ?? "");
+      }
+      const failures = [
+        ...(receipt?.failures ?? []),
+        ...settlementFailures,
+        ...inspectorFailures,
+      ];
+      const settled = scopeSettled && inspectorClosed;
+      Object.assign(retained, { receipt, primary, failures, settled });
+      if (!settled || failures.length > 0) {
+        process.exitCode = 1;
+        retainedCliCleanup = retained;
+      }
+      return { settled, receipt, failures };
+    })();
+    finalizationAttempt = attempt;
+    const release = () => {
+      if (finalizationAttempt === attempt) finalizationAttempt = undefined;
+    };
+    void attempt.then(release, release);
+    return attempt;
   }
+
+  try {
+    await scope.run(async () => {
+      if (isMcpDoctorMode) {
+        const { runProductionMcpDoctorCli } =
+          await import("../dist/mcpDoctor.js");
+        const result = await runProductionMcpDoctorCli(args.slice(2), {
+          dispatcherPath: fileURLToPath(import.meta.url),
+          packageRoot,
+        });
+        process.stdout.write(result.output);
+        process.exitCode = result.exitCode;
+      } else {
+        const { createCli } = await import("../dist/cli.js");
+        const { createStreamedCliJsonOutput } =
+          await import("../dist/cli/streamedJsonOutput.js");
+        const {
+          renderCliOutputArgumentError,
+          renderEmptyFilteredCliOutput,
+          validateCliOutputArguments,
+        } = await import("../dist/cliOutput.js");
+        const outputArguments = validateCliOutputArguments(args);
+        if (!outputArguments.ok) {
+          process.stdout.write(renderCliOutputArgumentError(outputArguments));
+          process.exitCode = 1;
+        } else {
+          let wroteOutput = false;
+          const resultOutput = createStreamedCliJsonOutput(
+            args,
+            process.stdout,
+          );
+          await createCli(process.env, resultOutput, scope).serve(args, {
+            stdout: (output) => {
+              if (resultOutput?.handled) {
+                if (resultOutput.failed) process.stderr.write(output);
+                return;
+              }
+              if (output.length > 0) wroteOutput = true;
+              process.stdout.write(output);
+            },
+          });
+          if (!wroteOutput && !resultOutput?.handled)
+            process.stdout.write(renderEmptyFilteredCliOutput(args) ?? "");
+        }
+      }
+    });
+  } catch (cause) {
+    primary = cause;
+    primaryFailed = true;
+  }
+  const final = await finalize();
+  if (!final.settled)
+    process.stderr.write(
+      "REA could not close cleanly. Owned cleanup remains available for retry; end this process before starting it again.\n",
+    );
+  else if (final.failures.length > 0)
+    process.stderr.write(
+      "REA cleanup encountered failures before settling. All owned cleanup is now settled; the failed exit status is preserved.\n",
+    );
+  if (primaryFailed) throw primary;
 }
 
 async function compiledRuntimeExists(paths) {

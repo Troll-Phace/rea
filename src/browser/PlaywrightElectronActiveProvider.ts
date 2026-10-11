@@ -34,6 +34,11 @@ import {
 } from "../process/ProcessOwnershipObservation.js";
 import { selectCapturedProcessGroupIds } from "../process/ProcessOwnershipProcessTree.js";
 import {
+  assertProcessCleanupRegistrationOpen,
+  registerProcessCleanupOwner,
+  type ProcessCleanupReceipt,
+} from "../process/ProcessCleanupScope.js";
+import {
   runElectronActions,
   readApplicationState,
   runWithExecutionLimits,
@@ -83,6 +88,99 @@ export class PlaywrightElectronActiveProvider implements ElectronActiveObservati
     let actions: ElectronActiveObservationResult["actions"] = [];
     let outcome: Result<ElectronActiveObservationResult, AnalysisError>;
     const runId = randomUUID();
+    let receipt: ProcessCleanupReceipt | undefined;
+    let transportClosed = false;
+    let transportAttempt: Promise<void> | undefined;
+    let processesClosed:
+      | Extract<ProcessCleanupResult, { cleaned: true }>
+      | undefined;
+    let pendingCleanup:
+      | Promise<{ cleanup: ProcessCleanupResult; closeError: unknown }>
+      | undefined;
+    const closeApplication = (): Promise<{
+      cleanup: ProcessCleanupResult;
+      closeError: unknown;
+    }> => {
+      if (pendingCleanup !== undefined) return pendingCleanup;
+      const attempt = (async () => {
+        let closeError: unknown;
+        if (ownership !== undefined && processesClosed === undefined) {
+          try {
+            const currentLineage = await observeOwnedProcessLineage(ownership);
+            if (currentLineage.status === "verified" || lineage === undefined)
+              lineage = currentLineage;
+          } catch (cause: unknown) {
+            closeError = cause;
+          }
+        }
+        if (!transportClosed && application !== undefined) {
+          try {
+            transportAttempt ??= application.close().then(
+              () => {
+                transportClosed = true;
+              },
+              (cause: unknown) => {
+                transportAttempt = undefined;
+                throw cause;
+              },
+            );
+            await runWithExecutionLimits(
+              transportAttempt,
+              undefined,
+              Date.now() + 5_000,
+            );
+          } catch (cause: unknown) {
+            closeError =
+              closeError === undefined
+                ? cause
+                : new AggregateError(
+                    [closeError, cause],
+                    "Electron observation and transport cleanup failed",
+                  );
+          }
+        }
+        let cleanup: ProcessCleanupResult;
+        try {
+          cleanup =
+            processesClosed ??
+            (ownership === undefined
+              ? {
+                  cleaned: false,
+                  reason: "owned Electron process identity was unavailable",
+                }
+              : await cleanupElectronProcesses(ownership, lineage));
+        } catch (cause: unknown) {
+          cleanup = {
+            cleaned: false,
+            reason:
+              cause instanceof Error
+                ? cause.message
+                : "Electron process cleanup failed",
+          };
+          closeError =
+            closeError === undefined
+              ? cause
+              : new AggregateError(
+                  [closeError, cause],
+                  "Electron cleanup failed",
+                );
+        }
+        if (cleanup.cleaned) processesClosed = cleanup;
+        receipt?.recordOutcome({
+          settled:
+            cleanup.cleaned && transportClosed && closeError === undefined,
+          failures: [
+            ...(cleanup.cleaned ? [] : [cleanup]),
+            ...(closeError === undefined ? [] : [closeError]),
+          ],
+        });
+        return { cleanup, closeError };
+      })().finally(() => {
+        if (pendingCleanup === attempt) pendingCleanup = undefined;
+      });
+      pendingCleanup = attempt;
+      return attempt;
+    };
     try {
       if (options.signal?.aborted === true)
         throw new BrowserObservationError(OPERATION, "cancelled");
@@ -93,12 +191,27 @@ export class PlaywrightElectronActiveProvider implements ElectronActiveObservati
         await systemProcessOwnershipHost.captureBaseline?.(options.signal);
       if (options.signal?.aborted)
         throw new BrowserObservationError(OPERATION, "cancelled");
+      assertProcessCleanupRegistrationOpen();
       application = await this.launch({
         executablePath: paths.executable,
         cwd: paths.root,
         env: safeElectronEnvironment(this.environment, runId),
         args: ["-r", hookPath, paths.application, ...input.args],
         timeout: Math.max(1, startupDeadline - Date.now()),
+      });
+      receipt = registerProcessCleanupOwner({
+        identity: { kind: "electron-application", runId },
+        close: async () => {
+          const { cleanup, closeError } = await closeApplication();
+          return {
+            settled:
+              cleanup.cleaned && transportClosed && closeError === undefined,
+            failures: [
+              ...(cleanup.cleaned ? [] : [cleanup]),
+              ...(closeError === undefined ? [] : [closeError]),
+            ],
+          };
+        },
       });
       const leaderPid = application.process().pid;
       if (
@@ -174,28 +287,7 @@ export class PlaywrightElectronActiveProvider implements ElectronActiveObservati
       );
     }
     if (application !== undefined) {
-      if (ownership !== undefined) {
-        const currentLineage = await observeOwnedProcessLineage(ownership);
-        if (currentLineage.status === "verified" || lineage === undefined)
-          lineage = currentLineage;
-      }
-      let closeError: unknown;
-      try {
-        await runWithExecutionLimits(
-          application.close(),
-          undefined,
-          Date.now() + 5_000,
-        );
-      } catch (cause: unknown) {
-        closeError = cause;
-      }
-      const cleanup =
-        ownership === undefined
-          ? ({
-              cleaned: false,
-              reason: "owned Electron process identity was unavailable",
-            } satisfies ProcessCleanupResult)
-          : await cleanupElectronProcesses(ownership, lineage);
+      const { cleanup, closeError } = await closeApplication();
       if (!cleanup.cleaned)
         return err(
           new BrowserObservationError(OPERATION, "cleanup_failed", {

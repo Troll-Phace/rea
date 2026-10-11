@@ -5,6 +5,7 @@ import { onTestFinished, vi } from "vitest";
 import { z } from "zod";
 
 import { ok } from "../../../../src/domain/result.js";
+import { acquireProviderProcessObservation } from "../../../../src/process/ProviderProcess.js";
 import type {
   BridgeLauncher,
   BridgeSession,
@@ -47,6 +48,7 @@ export class HopperFixtureLauncher implements BridgeLauncher {
       ],
       { stdio: ["ignore", "ignore", "pipe", "ipc"] },
     );
+    acquireProviderProcessObservation(child);
     child.on("message", (value: unknown) => {
       const request = requestSchema.safeParse(value);
       if (request.success) this.requests.push(request.data);

@@ -3,14 +3,17 @@ import {
   access,
   chmod,
   mkdir,
+  lstat,
   mkdtemp,
   readFile,
+  realpath,
+  rename,
   rm,
   symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { _electron as electron } from "playwright-core";
@@ -120,6 +123,80 @@ const waitForCompileState = async (statePath: string) => {
   }
   throw new Error("fake compiler did not start");
 };
+
+const compilerBoundaryStateSchema = z.object({
+  output: z.string(),
+  root: z.string(),
+  arguments: z.array(z.string()),
+  cwd: z.string(),
+  temporary: z.string(),
+  marker: z.string().optional(),
+  cache: z.string().optional(),
+});
+
+/** A real child, with only its compiler result controlled by the test. */
+const writeRecordedCompiler = async (
+  directory: string,
+  mode: "success" | "failure" | "blocking" = "success",
+) => {
+  const executable = join(directory, "recorded-xcrun");
+  const statePath = join(directory, "compiler-boundary-state.json");
+  const signalPath = join(directory, "compiler-signal.txt");
+  await writeFile(
+    executable,
+    `#!/usr/bin/env node
+const fs = require("node:fs");
+const path = require("node:path");
+const output = process.argv[process.argv.indexOf("-o") + 1];
+process.on("SIGINT", () => {
+  fs.writeFileSync(${JSON.stringify(signalPath)}, "SIGINT");
+  process.exit(130);
+});
+fs.writeFileSync(${JSON.stringify(statePath)}, JSON.stringify({
+  output, root: path.dirname(output), arguments: process.argv.slice(2),
+  cwd: process.cwd(), temporary: process.env.TMPDIR,
+  marker: process.env.REA_COMPILER_BOUNDARY_MARKER,
+  cache: process.env.CLANG_MODULE_CACHE_PATH,
+}));
+if (${JSON.stringify(mode)} === "failure") {
+  process.stderr.write("controlled compiler failure\\n");
+  process.exitCode = 7;
+} else if (${JSON.stringify(mode)} === "blocking") {
+  setInterval(() => {}, 1000);
+} else {
+  fs.writeFileSync(output, "compiled");
+}
+`,
+  );
+  await chmod(executable, 0o755);
+  return { executable, statePath, signalPath };
+};
+
+const waitForCompilerBoundary = async (statePath: string) => {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const parsed = compilerBoundaryStateSchema.safeParse(
+      await readFile(statePath, "utf8")
+        .then((text): unknown => JSON.parse(text))
+        .catch(() => undefined),
+    );
+    if (parsed.success) return parsed.data;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("recorded compiler did not start");
+};
+
+const rejectedCause = async (promise: Promise<unknown>): Promise<unknown> => {
+  try {
+    await promise;
+  } catch (cause: unknown) {
+    return cause;
+  }
+  throw new Error("operation unexpectedly succeeded");
+};
+
+const errorLeaves = (cause: unknown): readonly unknown[] =>
+  cause instanceof AggregateError ? cause.errors.flatMap(errorLeaves) : [cause];
 
 const waitForIdentityHelper = async (statePath: string) => {
   const deadline = Date.now() + 5_000;
@@ -441,43 +518,409 @@ it.skipIf(process.platform === "win32").each(["first", "second"] as const)(
   },
 );
 
-it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
-  "retains a failed compilation cleanup for a later close retry",
+it.skipIf(process.platform === "win32")(
+  "owns canonical private compiler files independently of Unicode caller TMPDIR",
   async () => {
-    const directory = await mkdtemp(
-      join(tmpdir(), "rea-process-token-cleanup-retry-test-"),
-    );
-    const fakeCompiler = await writeBlockingCompiler(directory);
+    const directory = await createTestTempDirectory("rea-token-boundary-test-");
+    const unicodeTemporary = join(directory, "unrelated cwd ü", "public 雪");
+    await mkdir(unicodeTemporary, { recursive: true });
+    const compiler = await writeRecordedCompiler(directory);
+    const base = await realpath("/tmp");
+    const baseBefore = await lstat(base);
+    const sibling = await mkdtemp(join(base, "rea-token-sibling-test-"));
+    const siblingFile = join(sibling, "preserve.txt");
+    await writeFile(siblingFile, "unrelated sibling");
+    const alias = join(directory, "base-alias");
+    await symlink(base, alias);
+    const resolutions: string[] = [];
+    const cwdBefore = process.cwd();
+    const cache = join(unicodeTemporary, "caller cache");
+    vi.stubEnv("TMPDIR", unicodeTemporary);
+    vi.stubEnv("CLANG_MODULE_CACHE_PATH", cache);
+    vi.stubEnv("REA_COMPILER_BOUNDARY_MARKER", "caller 雪 value");
     const reader = createDarwinProcessRunTokenReader({
-      xcrun: fakeCompiler.executable,
+      xcrun: compiler.executable,
+      temporaryFiles: {
+        realpath: async (path) => {
+          resolutions.push(String(path));
+          return realpath(path === "/tmp" ? alias : path);
+        },
+      },
     });
-    const controller = new AbortController();
-    const preparation = reader.prepare(controller.signal).then(
-      () => ({ state: "fulfilled" as const }),
-      (cause: unknown) => ({ state: "rejected" as const, cause }),
-    );
-    let compilationRoot: string | undefined;
     try {
-      const state = await waitForCompileState(fakeCompiler.statePath);
-      compilationRoot = state.root;
-      await writeFile(
-        join(state.root, "retained.txt"),
-        "cleanup must remain tracked",
-      );
-      await chmod(state.root, 0o000);
-      controller.abort();
-      expect((await preparation).state).toBe("rejected");
-      await expect(reader.close()).rejects.toThrow();
-      await chmod(state.root, 0o700);
+      const executable = await reader.prepare();
+      const state = await waitForCompilerBoundary(compiler.statePath);
+      expect(resolutions).toContain("/tmp");
+      expect(dirname(state.root)).toBe(base);
+      expect(await realpath(state.root)).toBe(state.root);
+      expect((await lstat(state.root)).mode & 0o777).toBe(0o700);
+      expect(state.root.startsWith(`${unicodeTemporary}/`)).toBe(false);
+      expect(state.temporary).toBe(join(state.root, "tmp"));
+      expect(executable).toBe(join(state.root, "reader"));
+      expect(state.arguments).toEqual([
+        "swiftc",
+        fileURLToPath(
+          new URL(
+            "../../../bridge/process/ProcessRunTokenReader.swift",
+            import.meta.url,
+          ),
+        ),
+        fileURLToPath(
+          new URL(
+            "../../../bridge/process/ProcessRunTokenReaderMain.swift",
+            import.meta.url,
+          ),
+        ),
+        "-o",
+        executable,
+      ]);
+      expect(state.cwd).toBe(cwdBefore);
+      expect(state.marker).toBe("caller 雪 value");
+      expect(state.cache).toBeUndefined();
+      expect(process.env.TMPDIR).toBe(unicodeTemporary);
+      expect(process.env.CLANG_MODULE_CACHE_PATH).toBe(cache);
+      expect(process.cwd()).toBe(cwdBefore);
+      expect(await reader.prepare()).toBe(executable);
       await reader.close();
       await expect(access(state.root)).rejects.toThrow();
+      expect(await readFile(siblingFile, "utf8")).toBe("unrelated sibling");
+      const baseAfter = await lstat(base);
+      expect({
+        dev: baseAfter.dev,
+        ino: baseAfter.ino,
+        mode: baseAfter.mode,
+      }).toEqual({
+        dev: baseBefore.dev,
+        ino: baseBefore.ino,
+        mode: baseBefore.mode,
+      });
+      await expect(access(unicodeTemporary)).resolves.toBeUndefined();
+    } finally {
+      vi.unstubAllEnvs();
+      await reader.close();
+      await rm(sibling, { recursive: true, force: true });
+    }
+  },
+);
+
+it.skipIf(process.platform === "win32").each(["realpath", "mkdtemp"] as const)(
+  "preserves deterministic %s permission failure without launching a compiler",
+  async (operation) => {
+    const directory = await createTestTempDirectory(
+      "rea-token-allocation-test-",
+    );
+    const compiler = await writeRecordedCompiler(directory);
+    const failure = Object.assign(new Error(`${operation} permission denied`), {
+      code: "EACCES",
+    });
+    const reader = createDarwinProcessRunTokenReader({
+      xcrun: compiler.executable,
+      temporaryFiles:
+        operation === "realpath"
+          ? {
+              realpath: async () => {
+                throw failure;
+              },
+            }
+          : {
+              mkdtemp: async () => {
+                throw failure;
+              },
+            },
+    });
+    try {
+      expect(await rejectedCause(reader.prepare())).toBe(failure);
+      await expect(access(compiler.statePath)).rejects.toThrow();
+      await reader.close();
+    } finally {
+      await reader.close();
+    }
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "retains an allocated generation when canonical readback fails and retries exact cleanup",
+  async () => {
+    const directory = await createTestTempDirectory(
+      "rea-token-partial-allocation-test-",
+    );
+    const compiler = await writeRecordedCompiler(directory);
+    const failure = Object.assign(
+      new Error("allocated root metadata unavailable"),
+      { code: "EACCES" },
+    );
+    let allocated: string | undefined;
+    let denyCanonicalReadback = true;
+    const reader = createDarwinProcessRunTokenReader({
+      xcrun: compiler.executable,
+      temporaryFiles: {
+        mkdtemp: async (prefix) => {
+          const path = await mkdtemp(prefix);
+          allocated = path;
+          return path;
+        },
+        realpath: async (path) => {
+          if (path === allocated && denyCanonicalReadback) throw failure;
+          return realpath(path);
+        },
+      },
+    });
+    try {
+      const cause = await rejectedCause(reader.prepare());
+      expect(cause).toBeInstanceOf(AggregateError);
+      expect((cause as AggregateError).errors).toContain(failure);
+      if (allocated === undefined) throw new Error("no root was allocated");
+      await expect(access(allocated)).resolves.toBeUndefined();
+      await expect(reader.prepare()).rejects.toThrow();
+      await expect(access(compiler.statePath)).rejects.toThrow();
+      denyCanonicalReadback = false;
+      // The original generation was measured before canonical readback failed.
+      await reader.close();
+      await expect(access(allocated)).rejects.toThrow();
+    } finally {
+      denyCanonicalReadback = false;
+      await reader.close();
+      if (allocated !== undefined)
+        await rm(allocated, { recursive: true, force: true });
+    }
+  },
+);
+
+it.skipIf(process.platform === "win32").each(["directory", "symlink"] as const)(
+  "refuses a %s replacement and retries only the original root generation",
+  async (replacement) => {
+    const directory = await createTestTempDirectory(
+      "rea-token-generation-test-",
+    );
+    const compiler = await writeRecordedCompiler(directory);
+    const remove = vi.fn(rm);
+    const reader = createDarwinProcessRunTokenReader({
+      xcrun: compiler.executable,
+      temporaryFiles: { rm: remove },
+    });
+    let ownedRoot: string | undefined;
+    let parkedRoot: string | undefined;
+    const unrelated = join(directory, "unrelated");
+    await mkdir(unrelated);
+    const sentinel = join(unrelated, "preserve.txt");
+    await writeFile(sentinel, "unrelated target");
+    try {
+      await reader.prepare();
+      const state = await waitForCompilerBoundary(compiler.statePath);
+      ownedRoot = state.root;
+      parkedRoot = `${state.root}-original`;
+      await rename(state.root, parkedRoot);
+      if (replacement === "directory") {
+        await mkdir(state.root);
+        await writeFile(
+          join(state.root, "replacement.txt"),
+          "replacement generation",
+        );
+      } else await symlink(unrelated, state.root);
+      await expect(reader.close()).rejects.toThrow(
+        /identity|generation|replaced|symbolic|symlink/iu,
+      );
+      expect(remove).not.toHaveBeenCalled();
+      expect(await readFile(sentinel, "utf8")).toBe("unrelated target");
+      if (replacement === "directory")
+        expect(
+          await readFile(join(state.root, "replacement.txt"), "utf8"),
+        ).toBe("replacement generation");
+      else expect((await lstat(state.root)).isSymbolicLink()).toBe(true);
+      await rm(state.root, { recursive: true, force: true });
+      await rename(parkedRoot, state.root);
+      parkedRoot = undefined;
+      await reader.close();
+      expect(remove).toHaveBeenCalledTimes(1);
+      await expect(access(state.root)).rejects.toThrow();
+      expect(await readFile(sentinel, "utf8")).toBe("unrelated target");
+    } finally {
+      if (parkedRoot !== undefined && ownedRoot !== undefined) {
+        await rm(ownedRoot, { recursive: true, force: true });
+        await rename(parkedRoot, ownedRoot);
+      }
+      await reader.close();
+    }
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "retains a successful executable after failed removal and awaits close retry",
+  async () => {
+    const directory = await createTestTempDirectory(
+      "rea-token-remove-retry-test-",
+    );
+    const compiler = await writeRecordedCompiler(directory);
+    const failure = new Error("controlled successful-root removal failure");
+    let denyRemoval = true;
+    const removals: string[] = [];
+    const reader = createDarwinProcessRunTokenReader({
+      xcrun: compiler.executable,
+      temporaryFiles: {
+        rm: async (path, options) => {
+          removals.push(String(path));
+          if (denyRemoval) throw failure;
+          await rm(path, options);
+        },
+      },
+    });
+    try {
+      const executable = await reader.prepare();
+      expect(await rejectedCause(reader.close())).toBe(failure);
+      await expect(access(executable)).resolves.toBeUndefined();
+      await expect(reader.prepare()).rejects.toThrow(/reader is closed/u);
+      denyRemoval = false;
+      await reader.close();
+      expect(removals).toEqual([dirname(executable), dirname(executable)]);
+      await expect(access(dirname(executable))).rejects.toThrow();
+      await reader.close();
+      expect(removals).toHaveLength(2);
+    } finally {
+      denyRemoval = false;
+      await reader.close();
+    }
+  },
+);
+
+it.skipIf(process.platform === "win32").each(["failure", "blocking"] as const)(
+  "preserves %s primary plus cleanup failure and forbids orphaning recompilation",
+  async (mode) => {
+    const directory = await createTestTempDirectory(
+      "rea-token-primary-cleanup-test-",
+    );
+    const compiler = await writeRecordedCompiler(directory, mode);
+    const cleanupFailure = new Error("controlled failed-root removal failure");
+    let denyRemoval = true;
+    let allocations = 0;
+    const reader = createDarwinProcessRunTokenReader({
+      xcrun: compiler.executable,
+      temporaryFiles: {
+        mkdtemp: async (prefix) => {
+          allocations += 1;
+          return mkdtemp(prefix);
+        },
+        rm: async (path, options) => {
+          if (denyRemoval) throw cleanupFailure;
+          await rm(path, options);
+        },
+      },
+    });
+    const controller = new AbortController();
+    const preparation = rejectedCause(reader.prepare(controller.signal));
+    try {
+      const state = await waitForCompilerBoundary(compiler.statePath);
+      if (mode === "blocking") controller.abort();
+      const cause = await preparation;
+      expect(cause).toBeInstanceOf(AggregateError);
+      const aggregate = cause as AggregateError;
+      expect(errorLeaves(aggregate)).toContain(cleanupFailure);
+      expect(errorLeaves(aggregate)).toEqual(
+        expect.arrayContaining([
+          mode === "blocking"
+            ? expect.objectContaining({ name: "AbortError" })
+            : expect.objectContaining({
+                name: "DarwinProcessOwnershipInspectionError",
+                message: expect.stringMatching(/controlled compiler failure/u),
+              }),
+        ]),
+      );
+      if (mode === "blocking")
+        expect(await readFile(compiler.signalPath, "utf8")).toBe("SIGINT");
+      await expect(access(state.root)).resolves.toBeUndefined();
+      expect(await rejectedCause(reader.prepare())).toBe(cleanupFailure);
+      expect(allocations).toBe(1);
+      expect(await rejectedCause(reader.close())).toBe(cleanupFailure);
+      denyRemoval = false;
+      await reader.close();
+      await expect(access(state.root)).rejects.toThrow();
+      // Historical evidence stays intact after successful physical retry.
+      expect(errorLeaves(aggregate)).toContain(cleanupFailure);
     } finally {
       if (!controller.signal.aborted) controller.abort();
       await preparation;
-      if (compilationRoot !== undefined)
-        await chmod(compilationRoot, 0o700).catch(() => undefined);
+      denyRemoval = false;
       await reader.close();
-      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "keeps close-during-compile cancellation and removal failures independently retryable",
+  async () => {
+    const directory = await createTestTempDirectory(
+      "rea-token-close-failure-test-",
+    );
+    const compiler = await writeRecordedCompiler(directory, "blocking");
+    const cleanupFailure = new Error("controlled close removal failure");
+    let denyRemoval = true;
+    const reader = createDarwinProcessRunTokenReader({
+      xcrun: compiler.executable,
+      temporaryFiles: {
+        rm: async (path, options) => {
+          if (denyRemoval) throw cleanupFailure;
+          await rm(path, options);
+        },
+      },
+    });
+    const preparation = rejectedCause(reader.prepare());
+    try {
+      const state = await waitForCompilerBoundary(compiler.statePath);
+      const closeFailure = await rejectedCause(reader.close());
+      for (const cause of [closeFailure, await preparation]) {
+        expect(cause).toBeInstanceOf(AggregateError);
+        expect(errorLeaves(cause)).toContain(cleanupFailure);
+        expect(errorLeaves(cause)).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ name: "AbortError" }),
+          ]),
+        );
+      }
+      expect(await readFile(compiler.signalPath, "utf8")).toBe("SIGINT");
+      await expect(access(state.root)).resolves.toBeUndefined();
+      denyRemoval = false;
+      await reader.close();
+      await expect(access(state.root)).rejects.toThrow();
+      expect(errorLeaves(closeFailure)).toContain(cleanupFailure);
+    } finally {
+      denyRemoval = false;
+      await preparation;
+      await reader.close();
+    }
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "awaits SIGINT settlement and exact cleanup when all shared waiters cancel",
+  async () => {
+    const directory = await createTestTempDirectory(
+      "rea-token-all-waiters-test-",
+    );
+    const compiler = await writeRecordedCompiler(directory, "blocking");
+    const reader = createDarwinProcessRunTokenReader({
+      xcrun: compiler.executable,
+    });
+    const firstController = new AbortController();
+    const secondController = new AbortController();
+    const first = rejectedCause(reader.prepare(firstController.signal));
+    let second: Promise<unknown> | undefined;
+    try {
+      const state = await waitForCompilerBoundary(compiler.statePath);
+      second = rejectedCause(reader.prepare(secondController.signal));
+      firstController.abort();
+      secondController.abort();
+      expect(await first).toMatchObject({ name: "AbortError" });
+      expect(await second).toMatchObject({ name: "AbortError" });
+      expect(await readFile(compiler.signalPath, "utf8")).toBe("SIGINT");
+      await expect(access(state.root)).rejects.toThrow();
+      await reader.close();
+    } finally {
+      firstController.abort();
+      secondController.abort();
+      await Promise.allSettled([
+        first,
+        ...(second === undefined ? [] : [second]),
+      ]);
+      await reader.close();
     }
   },
 );

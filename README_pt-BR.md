@@ -152,6 +152,8 @@ A inspeção estática de JavaScript e .NET lê os arquivos fornecidos sem execu
 
 Os formatos nativos e os sistemas anfitriões compatíveis variam por provedor. Consulte [configuração do Hopper e Ghidra](docs/installation.md#hopper), o [guia do IDA](docs/ida-provider.md) e o [suporte experimental ao Ghidra no Windows](docs/windows-ghidra-p0.md). O Ghidra também oferece [análise de DOS de 16 bits](docs/ghidra-dos.md). Para selecionar um provedor, consulte o [guia da CLI](docs/cli.md#choose-a-provider). Verifique a [disponibilidade nas versões](docs/installation.md#released-package-and-main) das funcionalidades adicionadas após a versão mais recente no npm.
 
+PS-X EXE (Ghidra): [guia](docs/ghidra-psx.md).
+
 ## Casos de uso
 
 [![Ilustrações dos estudos de panoramização de áudio do DX-Ball, da ponte da área de transferência do Notion e do anel de projéteis do TH04](docs/assets/rea-showcases.png)](https://rea.tools/showcase/)

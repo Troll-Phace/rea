@@ -152,6 +152,8 @@ REA потребує Node.js 22.x (>=22.19), 24.x (>=24.11) або 26+, а та�
 
 Нативні формати й підтримка систем відрізняються залежно від провайдера. Дивіться [налаштування Hopper і Ghidra](docs/installation.md#hopper), [посібник IDA](docs/ida-provider.md) та [експериментальну підтримку Ghidra у Windows](docs/windows-ghidra-p0.md). Ghidra також підтримує [аналіз 16-бітного DOS](docs/ghidra-dos.md). Для вибору провайдера дивіться [посібник CLI](docs/cli.md#choose-a-provider). Для функцій, доданих після найновішої версії в npm, перевірте [доступність у випусках](docs/installation.md#released-package-and-main).
 
+PS-X EXE (Ghidra): [посібник](docs/ghidra-psx.md).
+
 ## Приклади
 
 [![Ілюстрації прикладів панорамування звуку в DX-Ball, мосту буфера обміну Notion та кільця куль у TH04](docs/assets/rea-showcases.png)](https://rea.tools/showcase/)

@@ -1,5 +1,6 @@
 import com.google.gson.*;
 import ghidra.app.cmd.disassemble.DisassembleCommand;
+import ghidra.program.database.bookmark.BookmarkDBManager;
 import ghidra.program.database.mem.FileBytes;
 import ghidra.program.model.address.*;
 import ghidra.program.model.lang.*;
@@ -190,11 +191,13 @@ public final class ReaGhidraPsxProvenance {
     private record SymbolState(Address address, String name, SourceType source, SymbolType type, boolean primary) {}
     private record FunctionState(Address entry, String name, SourceType source, AddressSet body, int purge) {}
     private record ReferenceState(Address from, Address to, RefType type, SourceType source, int operand, boolean primary) {}
+    private record BookmarkState(long id, Address address, long typeId, String type, String category, String comment) {}
     private static final class State {
         final List<BlockState> blocks = new ArrayList<>(); final List<ContextState> contexts = new ArrayList<>();
         final List<SymbolState> symbols = new ArrayList<>(); final List<FunctionState> functions = new ArrayList<>(); final List<ReferenceState> references = new ArrayList<>();
         final List<Address> entries = new ArrayList<>(); final AddressSet instructions = new AddressSet(), instructionStarts = new AddressSet();
         final List<FragmentState> fragments = new ArrayList<>();
+        final List<BookmarkState> bookmarks = new ArrayList<>(); JsonArray bookmarkTypes;
         final Map<String, List<String>> treeOrders = new TreeMap<>();
         final JsonObject manifest = new JsonObject(); JsonArray journal; String unavailable;
         void refuse(String reason) { if (unavailable == null) unavailable = reason; }
@@ -301,6 +304,65 @@ public final class ReaGhidraPsxProvenance {
     private static JsonArray ranges(Program program, AddressSetView set) {
         JsonArray result = new JsonArray(); for (AddressRange range : set.getAddressRanges()) result.add(obj("start", address(program, range.getMinAddress()), "end", address(program, range.getMaxAddress()))); return result;
     }
+    private static JsonArray bookmarkTypes(Program program, State state, TaskMonitor monitor) throws Exception {
+        BookmarkManager manager = program.getBookmarkManager(); List<JsonObject> rows = new ArrayList<>();
+        Set<Long> ids = new HashSet<>(); Set<String> names = new HashSet<>();
+        for (BookmarkType type : manager.getBookmarkTypes()) {
+            monitor.checkCancelled();
+            if (!ids.add((long)type.getTypeId()) || !names.add(type.getTypeString())) throw new IllegalStateException("Ambiguous bookmark type identity");
+            if (type.getIcon() != null) state.refuse("Opaque bookmark marker icon cannot be completely represented for preservation");
+            rows.add(obj("id", type.getTypeId(), "name", type.getTypeString(), "defined", manager.isDefinedType(type.getTypeString()),
+                "has_bookmarks", type.hasBookmarks(), "priority", type.getMarkerPriority(), "color_argb", type.getMarkerColor() == null ? null : type.getMarkerColor().getRGB(),
+                "icon", type.getIcon() == null ? null : obj("unavailable_value_class", type.getIcon().getClass().getName())));
+        }
+        for (BookmarkState bookmark : state.bookmarks) {
+            boolean represented = rows.stream().anyMatch(row -> row.get("id").getAsLong() == bookmark.typeId && Objects.equals(row.get("name").getAsString(), bookmark.type));
+            if (!represented) throw new IllegalStateException("Bookmark type identity missing from complete enumeration");
+        }
+        return ordered(rows);
+    }
+    /** A checked empty interval in the payload's actual address space, never a reserved scratch address. */
+    private static Address bookmarkParking(Program program, AddressSet affected, TaskMonitor monitor) throws Exception {
+        AddressSpace space = affected.getMinAddress().getAddressSpace();
+        if (!space.equals(program.getAddressFactory().getDefaultAddressSpace()) || !space.equals(affected.getMaxAddress().getAddressSpace()) || affected.getNumAddressRanges() != 1)
+            throw new IllegalStateException("Bookmark parking address-space ambiguity");
+        AddressSet free = new AddressSet(space.getMinAddress(), space.getMaxAddress()); free.delete(affected); free.delete(program.getMemory());
+        var iterator = program.getBookmarkManager().getBookmarksIterator();
+        while (iterator.hasNext()) { monitor.checkCancelled(); Address at = iterator.next().getAddress(); free.delete(at, at); }
+        for (AddressRange range : free.getAddressRanges()) {
+            monitor.checkCancelled();
+            if (range.getLength() >= affected.getNumAddresses()) {
+                Address at = range.getMinAddress(); validateBookmarkParking(program, affected, at, monitor); return at;
+            }
+        }
+        throw new IllegalStateException("No complete disjoint empty bookmark parking interval");
+    }
+    private static void validateBookmarkParking(Program program, AddressSet affected, Address at, TaskMonitor monitor) throws Exception {
+        if (!at.getAddressSpace().equals(affected.getMinAddress().getAddressSpace())) throw new IllegalStateException("Bookmark parking address-space ambiguity");
+        AddressSet interval;
+        try { interval = new AddressSet(at, at.addNoWrap(affected.getNumAddresses() - 1)); }
+        catch (AddressOverflowException overflow) { throw new IllegalStateException("Bookmark parking interval overflow", overflow); }
+        if (interval.intersects(affected) || interval.intersects(program.getMemory())) throw new IllegalStateException("Bookmark parking overlaps payload or mapped memory");
+        var iterator = program.getBookmarkManager().getBookmarksIterator();
+        while (iterator.hasNext()) { monitor.checkCancelled(); if (interval.contains(iterator.next().getAddress())) throw new IllegalStateException("Bookmark parking destination occupied"); }
+    }
+    /** Resolve each original key and independently enumerate all live keys; no bookmark is recreated. */
+    private static void verifyBookmarks(Program program, State original, AddressSet affected, Address destination, TaskMonitor monitor) throws Exception {
+        BookmarkManager manager = program.getBookmarkManager(); Set<Long> expected = new HashSet<>();
+        for (BookmarkState saved : original.bookmarks) {
+            monitor.checkCancelled();
+            if (!expected.add(saved.id)) throw new IllegalStateException("Duplicate captured bookmark identity");
+            Bookmark current = manager.getBookmark(saved.id);
+            Address at = affected.contains(saved.address) ? destination.addNoWrap(saved.address.subtract(affected.getMinAddress())) : saved.address;
+            if (current == null || !current.getAddress().equals(at) || current.getType().getTypeId() != saved.typeId || !Objects.equals(current.getTypeString(), saved.type) ||
+                !Objects.equals(current.getCategory(), saved.category) || !Objects.equals(current.getComment(), saved.comment)) throw new IllegalStateException("Bookmark identity/offset/type/category/comment changed");
+        }
+        Set<Long> actual = new HashSet<>(); var iterator = manager.getBookmarksIterator();
+        while (iterator.hasNext()) { monitor.checkCancelled(); if (!actual.add(iterator.next().getId())) throw new IllegalStateException("Duplicate live bookmark identity"); }
+        if (!actual.equals(expected)) throw new IllegalStateException("Unexpected generated or missing bookmark identity");
+        State currentTypes = new State(); JsonArray types = bookmarkTypes(program, currentTypes, monitor);
+        if (currentTypes.unavailable != null || !types.equals(original.bookmarkTypes)) throw new IllegalStateException("Bookmark type state changed or became unsupported");
+    }
     /** Full logical manifest, including unaffected state. Provenance fields alone are excluded. */
     private static State capture(Program program, AddressSet affected, TaskMonitor monitor) throws Exception {
         State state = new State(); List<JsonObject> rows = new ArrayList<>();
@@ -403,11 +465,16 @@ public final class ReaGhidraPsxProvenance {
         while (entries.hasNext()) { Address at = entries.next(); rows.add(obj("address", address(program, at))); if (affected.contains(at)) state.entries.add(at); }
         state.manifest.add("entries", ordered(rows)); rows = new ArrayList<>();
         var bookmarks = program.getBookmarkManager().getBookmarksIterator();
+        Set<Long> bookmarkIds = new HashSet<>();
         while (bookmarks.hasNext()) {
-            monitor.checkCancelled(); Bookmark bookmark = bookmarks.next(); rows.add(obj("address", address(program, bookmark.getAddress()), "type", bookmark.getTypeString(), "category", bookmark.getCategory(), "comment", bookmark.getComment()));
-            if (affected.contains(bookmark.getAddress())) state.refuse("Affected bookmark metadata cannot be restored by plain loader adaptation");
+            monitor.checkCancelled(); Bookmark bookmark = bookmarks.next();
+            if (!bookmarkIds.add(bookmark.getId())) throw new IllegalStateException("Duplicate bookmark identity during capture");
+            state.bookmarks.add(new BookmarkState(bookmark.getId(), bookmark.getAddress(), bookmark.getType().getTypeId(), bookmark.getTypeString(), bookmark.getCategory(), bookmark.getComment()));
+            rows.add(obj("id", Long.toUnsignedString(bookmark.getId()), "address", address(program, bookmark.getAddress()), "type_id", bookmark.getType().getTypeId(),
+                "type", bookmark.getTypeString(), "category", bookmark.getCategory(), "comment", bookmark.getComment()));
         }
-        state.manifest.add("bookmarks", ordered(rows)); rows = new ArrayList<>();
+        state.bookmarkTypes = bookmarkTypes(program, state, monitor);
+        state.manifest.add("bookmarks", obj("records", ordered(rows), "types", state.bookmarkTypes)); rows = new ArrayList<>();
         var comments = program.getListing().getCommentAddressIterator(program.getAddressFactory().getAddressSet(), true);
         while (comments.hasNext()) {
             monitor.checkCancelled(); Address at = comments.next(); for (CommentType type : CommentType.values()) {
@@ -512,6 +579,16 @@ public final class ReaGhidraPsxProvenance {
             blocks.add(block); next = block.getEnd().addNoWrap(1);
         }
         if (!next.equals(affected.getMaxAddress().addNoWrap(1)) || blocks.isEmpty()) refusal = "Payload coverage is incomplete";
+        boolean moveBookmarks = captured.bookmarks.stream().anyMatch(bookmark -> affected.contains(bookmark.address));
+        BookmarkDBManager bookmarkManager = program.getBookmarkManager() instanceof BookmarkDBManager manager ? manager : null;
+        Address parking = null;
+        if (refusal == null && moveBookmarks) {
+            if (bookmarkManager == null) refusal = "Affected bookmark identity requires the supported database bookmark manager";
+            else {
+                try { parking = bookmarkParking(program, affected, monitor); }
+                catch (IllegalStateException unsupported) { refusal = unsupported.getMessage(); }
+            }
+        }
         if (refusal != null) {
             State unchanged = capture(program, affected, monitor);
             if (!captured.manifest.equals(unchanged.manifest) || !original.equals(observe(program, monitor))) throw new IllegalStateException("Unavailable preflight changed original state");
@@ -534,6 +611,14 @@ public final class ReaGhidraPsxProvenance {
         int transaction = program.startTransaction("REA PSX source provenance rebind");
         boolean intendedCommit = false; Exception failure = null; State inTransactionState = null; JsonObject inTransactionObservation = null;
         try {
+            if (moveBookmarks) {
+                if (program.getBookmarkManager() != bookmarkManager) throw new IllegalStateException("Bookmark manager changed before parking");
+                verifyBookmarks(program, captured, affected, affected.getMinAddress(), monitor);
+                validateBookmarkParking(program, affected, parking, monitor);
+                bookmarkManager.moveAddressRange(affected.getMinAddress(), parking, affected.getNumAddresses(), monitor);
+                monitor.checkCancelled();
+                verifyBookmarks(program, captured, affected, parking, monitor);
+            }
             FileBytes file;
             try (InputStream stream = Files.newInputStream(snapshot, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
                 file = program.getMemory().createFileBytes(snapshot.getFileName().toString(), 0, declarations.get("file_bytes").getAsLong(), stream, monitor);
@@ -555,6 +640,7 @@ public final class ReaGhidraPsxProvenance {
                 rebound.add(obj("start", address(program, block.start), "end", address(program, block.start.addNoWrap(block.size - 1)), "length", block.size, "file_offset", fileOffset,
                     "source_file_index", program.getMemory().getAllFileBytes().indexOf(file), "before_sha256", previous, "after_sha256", measured));
             }
+            monitor.checkCancelled();
             for (FragmentState originalFragment : captured.fragments) {
                 ProgramFragment fragment = program.getListing().getFragment(originalFragment.tree, originalFragment.name);
                 if (fragment == null) fragment = program.getListing().getRootModule(originalFragment.tree).createFragment(originalFragment.name);
@@ -601,6 +687,14 @@ public final class ReaGhidraPsxProvenance {
             for (Reference reference : remove) program.getReferenceManager().delete(reference);
             for (ReferenceState reference : captured.references) {
                 Reference restored = program.getReferenceManager().addMemoryReference(reference.from, reference.to, reference.type, reference.source, reference.operand); program.getReferenceManager().setPrimary(restored, reference.primary);
+            }
+            if (moveBookmarks) {
+                if (program.getBookmarkManager() != bookmarkManager) throw new IllegalStateException("Bookmark manager changed before return");
+                // Exact all-key verification also proves absence of newly generated records in either range.
+                verifyBookmarks(program, captured, affected, parking, monitor);
+                bookmarkManager.moveAddressRange(parking, affected.getMinAddress(), affected.getNumAddresses(), monitor);
+                monitor.checkCancelled();
+                verifyBookmarks(program, captured, affected, affected.getMinAddress(), monitor);
             }
             monitor.checkCancelled(); State restored = capture(program, affected, monitor);
             validateJournalTransition(program, captured, restored, affected, generated);

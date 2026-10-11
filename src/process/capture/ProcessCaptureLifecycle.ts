@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { constants, statSync, type BigIntStats } from "node:fs";
-import { open, mkdtemp, rm, stat } from "node:fs/promises";
+import { open, mkdtemp, rm, stat, lstat, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -48,6 +48,11 @@ import {
   type ProcessCaptureTruncationDetails,
 } from "../../domain/process/processCaptureCoverage.js";
 import { scheduleProcessInterval, type ProcessTimer } from "./ProcessTimer.js";
+import {
+  assertProcessCleanupRegistrationOpen,
+  registerProcessCleanupOwner,
+  type ProcessCleanupReceipt,
+} from "../ProcessCleanupScope.js";
 
 import type {
   FilesystemCheckpoint,
@@ -808,6 +813,7 @@ export const releaseProcessResources = async (options: {
   readonly captureBaseline?: ProcessOwnershipBaseline;
   readonly sampledProcessGroupIds?: readonly number[];
   readonly host?: ProcessCaptureCleanupHost;
+  readonly previous?: ProcessCaptureCleanupReport;
 }): Promise<ProcessCaptureCleanupReport> => {
   const host = options.host ?? processCaptureCleanupHost;
   for (const timer of options.timers) timer.cancel();
@@ -816,7 +822,9 @@ export const releaseProcessResources = async (options: {
     reason: null,
   };
   try {
-    await options.renderer?.dispose();
+    if (options.previous?.terminal_renderer.state === "cleaned")
+      terminalRenderer = options.previous.terminal_renderer;
+    else await options.renderer?.dispose();
   } catch (cause: unknown) {
     terminalRenderer = {
       state: "failed",
@@ -827,29 +835,43 @@ export const releaseProcessResources = async (options: {
     };
   }
   const ownedProcessGroup =
-    options.terminal === undefined
-      ? { state: "not_required" as const, reason: null }
-      : await releaseCapturedProcessGroup(
-          {
-            runId: options.runId,
-            leaderPid: options.terminal.pid,
-            processGroupId: options.terminal.pid,
-            sweepTokenOwnedProcesses: true,
-            ...(options.sampledProcessGroupIds === undefined
-              ? {}
-              : { sampledProcessGroupIds: options.sampledProcessGroupIds }),
-            ...(options.captureBaseline === undefined
-              ? {}
-              : { captureBaseline: options.captureBaseline }),
-          },
-          host,
-        );
+    options.previous?.owned_process_group.state === "cleaned"
+      ? options.previous.owned_process_group
+      : options.terminal === undefined
+        ? { state: "not_required" as const, reason: null }
+        : await releaseCapturedProcessGroup(
+            {
+              runId: options.runId,
+              leaderPid: options.terminal.pid,
+              processGroupId: options.terminal.pid,
+              sweepTokenOwnedProcesses: true,
+              ...(options.sampledProcessGroupIds === undefined
+                ? {}
+                : { sampledProcessGroupIds: options.sampledProcessGroupIds }),
+              ...(options.captureBaseline === undefined
+                ? {}
+                : { captureBaseline: options.captureBaseline }),
+            },
+            host,
+          );
   let temporaryRoot: ProcessCaptureCleanupReport["temporary_root"] = {
     state: "cleaned",
     reason: null,
   };
   try {
-    await host.removeTemporaryRoot(options.temporaryRoot);
+    if (
+      terminalRenderer.state === "failed" ||
+      ownedProcessGroup.state === "failed" ||
+      ownedProcessGroup.state === "unverified"
+    )
+      temporaryRoot = {
+        state: "failed",
+        reason:
+          "Temporary root retained until renderer and process cleanup settle",
+      };
+    else if (options.previous?.temporary_root.state === "cleaned")
+      temporaryRoot = options.previous.temporary_root;
+    else await host.removeTemporaryRoot(options.temporaryRoot);
   } catch (cause: unknown) {
     temporaryRoot = {
       state: "failed",
@@ -865,6 +887,137 @@ export const releaseProcessResources = async (options: {
     temporary_root: temporaryRoot,
   };
 };
+
+/** One capture generation keeps acquired components reachable before publication. */
+export class ProcessCaptureCleanupOwner {
+  readonly timers = new Set<ProcessTimer>();
+  terminal: IPty | undefined;
+  renderer: TerminalRenderer | undefined;
+  captureBaseline: ProcessOwnershipBaseline = [];
+  sampledProcessGroupIds: readonly number[] | undefined;
+  stopSampler: (() => Promise<unknown>) | undefined;
+  host: ProcessCaptureCleanupHost;
+  readonly receipt: ProcessCleanupReceipt | undefined;
+  lastReport: ProcessCaptureCleanupReport | undefined;
+  #generation: { readonly dev: number; readonly ino: number } | undefined;
+  #canonicalRoot: string | undefined;
+  #pending: Promise<ProcessCaptureCleanupReport> | undefined;
+  #samplingSettled = false;
+
+  constructor(
+    readonly temporaryRoot: string,
+    readonly runId: string,
+    host: ProcessCaptureCleanupHost = processCaptureCleanupHost,
+  ) {
+    this.host = host;
+    this.receipt = registerProcessCleanupOwner({
+      identity: { kind: "process-capture", runId },
+      close: async () => {
+        const report = await this.closeReport();
+        const failure = cleanupReportFailure(report);
+        return {
+          settled: failure === undefined,
+          failures: failure === undefined ? [] : [report],
+        };
+      },
+    });
+  }
+
+  async captureGeneration(): Promise<void> {
+    const info = await lstat(this.temporaryRoot);
+    if (!info.isDirectory() || info.isSymbolicLink())
+      throw new Error(
+        "Capture temporary root is not a canonical owned directory",
+      );
+    this.#canonicalRoot = await realpath(this.temporaryRoot);
+    this.#generation = { dev: info.dev, ino: info.ino };
+  }
+
+  closeReport(): Promise<ProcessCaptureCleanupReport> {
+    if (this.#pending !== undefined) return this.#pending;
+    const attempt = this.#closeReport()
+      .then((report) => {
+        this.lastReport = report;
+        const failure = cleanupReportFailure(report);
+        this.receipt?.recordOutcome({
+          settled: failure === undefined,
+          failures: failure === undefined ? [] : [report],
+        });
+        return report;
+      })
+      .finally(() => {
+        if (this.#pending === attempt) this.#pending = undefined;
+      });
+    this.#pending = attempt;
+    return attempt;
+  }
+
+  async #closeReport(): Promise<ProcessCaptureCleanupReport> {
+    for (const timer of this.timers) timer.cancel();
+    if (!this.#samplingSettled) {
+      try {
+        await this.stopSampler?.();
+        this.#samplingSettled = true;
+      } catch (cause: unknown) {
+        const reason =
+          cause instanceof Error ? cause.message : "Sampling settlement failed";
+        return {
+          owned_process_group: { state: "failed", reason },
+          terminal_renderer: {
+            state: "failed",
+            reason: "Renderer retained until sampling settles",
+          },
+          temporary_root: {
+            state: "failed",
+            reason: "Temporary root retained until sampling settles",
+          },
+        };
+      }
+    }
+    const host = this.host;
+    return releaseProcessResources({
+      timers: this.timers,
+      terminal: this.terminal,
+      renderer: this.renderer,
+      runId: this.runId,
+      temporaryRoot: this.temporaryRoot,
+      captureBaseline: this.captureBaseline,
+      ...(this.sampledProcessGroupIds === undefined
+        ? {}
+        : { sampledProcessGroupIds: this.sampledProcessGroupIds }),
+      ...(this.lastReport === undefined ? {} : { previous: this.lastReport }),
+      host: {
+        ...host,
+        removeTemporaryRoot: async (path) => {
+          if (this.#generation === undefined)
+            throw new Error("Capture temporary root generation is unavailable");
+          const info = await lstat(path);
+          if (
+            !info.isDirectory() ||
+            info.isSymbolicLink() ||
+            info.dev !== this.#generation.dev ||
+            info.ino !== this.#generation.ino ||
+            (await realpath(path)) !== this.#canonicalRoot
+          )
+            throw new Error("Capture temporary root generation changed");
+          await host.removeTemporaryRoot(path);
+          try {
+            await lstat(path);
+          } catch (cause: unknown) {
+            if (
+              cause instanceof Error &&
+              "code" in cause &&
+              cause.code === "ENOENT"
+            )
+              return;
+            throw cause;
+          }
+          throw new Error("Capture temporary root still exists after removal");
+        },
+      },
+    });
+  }
+}
 
 export const cleanupReportFailure = (
   report: ProcessCaptureCleanupReport,
@@ -1091,28 +1244,29 @@ export const prepareProcessCapture = async (
   readonly runId: string;
   readonly ownershipBaseline: ProcessOwnershipBaseline;
   readonly before: ProcessFilesystemSnapshot;
+  readonly cleanupOwner: ProcessCaptureCleanupOwner;
 }> => {
   assertNotCancelled(signal);
   await host.prepareOwnershipInspector?.(signal);
   assertNotCancelled(signal);
   const before = await captureSnapshot(scenario, signal);
   const runId = randomUUID();
+  assertProcessCleanupRegistrationOpen();
   const temporaryRoot = await host.createTemporaryRoot();
+  const cleanupOwner = new ProcessCaptureCleanupOwner(temporaryRoot, runId, {
+    ...processCaptureCleanupHost,
+    removeTemporaryRoot: host.cleanup,
+  });
   try {
+    await cleanupOwner.captureGeneration();
     assertNotCancelled(signal);
     const ownershipBaseline =
       (await host.captureOwnershipBaseline?.(signal)) ?? [];
+    cleanupOwner.captureBaseline = ownershipBaseline;
     assertNotCancelled(signal);
-    return { temporaryRoot, runId, ownershipBaseline, before };
+    return { temporaryRoot, runId, ownershipBaseline, before, cleanupOwner };
   } catch (cause: unknown) {
-    const cleanup = await releaseProcessResources({
-      timers: new Set(),
-      terminal: undefined,
-      renderer: undefined,
-      runId,
-      temporaryRoot,
-      host: { ...processCaptureCleanupHost, removeTemporaryRoot: host.cleanup },
-    });
+    const cleanup = await cleanupOwner.closeReport();
     resolveProcessResult(
       undefined,
       normalizeCaptureFailure(cause, signal),

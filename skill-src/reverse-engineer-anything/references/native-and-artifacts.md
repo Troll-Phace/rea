@@ -76,11 +76,18 @@ declared payload coverage, source offsets/digests and the exact entry instructio
 against the immutable snapshot. Preserve `mismatch`, `unsupported` and named
 unknown checks. REA may create FileBytes-backed payload blocks in its disposable
 analysis Program; verified refers to that adapted static image. It does not
-establish original-loader lineage, runtime correctness or MIPS query semantics.
+establish original-loader lineage or runtime correctness. Measured static MIPS
+queries have a separate operation contract and acceptance scope.
 The complete original label journal is retained as evidence, with recreation
 differences disclosed; the live journal is not claimed restored. Missing SP and
-uninitialized fill content remain unknown. Function/instruction queries remain
-unavailable until their separate support gate is satisfied.
+uninitialized fill content remain unknown. Check actual session availability,
+then use instruction/call-target inspection, function instructions,
+decompilation and typed references as the question requires. Delay-slot fields
+are measured Listing coverage; computed false on a decoded return does not
+reveal its runtime target. PSX annotation and native data-type queries remain
+refused. Linux, game, installed-package and fresh-client claims require their
+own evidence; see this fork's
+[PSX guide](https://github.com/Troll-Phace/rea/blob/main/docs/ghidra-psx.md).
 
 ## Managed PE/CLI
 

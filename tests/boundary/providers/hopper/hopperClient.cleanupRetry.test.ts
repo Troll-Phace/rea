@@ -23,7 +23,10 @@ import {
 } from "../../../../src/hopper/HopperCleanup.js";
 import { silentLogger } from "../../../../src/logger.js";
 import { PrivateRuntimeRoot } from "../../../../src/process/PrivateRuntimeRoot.js";
-import { ProviderProcessSupervisor } from "../../../../src/process/ProviderProcess.js";
+import {
+  acquireProviderProcessObservation,
+  ProviderProcessSupervisor,
+} from "../../../../src/process/ProviderProcess.js";
 
 class RetryCleanupLauncher implements BridgeLauncher {
   readonly sessions: BridgeSession[] = [];
@@ -47,6 +50,7 @@ class RetryCleanupLauncher implements BridgeLauncher {
       ["-e", "setInterval(() => undefined, 1000)"],
       { stdio: "ignore" },
     );
+    acquireProviderProcessObservation(child);
     this.processes.push(child);
     const launch: BridgeLaunch = this.externalDocument
       ? {

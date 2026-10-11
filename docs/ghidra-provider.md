@@ -9,7 +9,9 @@ Use [installation](installation.md#ghidra) for supported hosts, prerequisites,
 configuration, startup deadlines, resource controls, and cleanup recovery.
 [Windows P0](windows-ghidra-p0.md) has its own admission and lifecycle boundary;
 [NativeAOT recovery](ghidra-nativeaot.md) is an optional, separately verified
-extension. Check the [release boundary](installation.md#released-package-and-main)
+extension. [PS-X EXE analysis](ghidra-psx.md) describes this fork's admitted
+static workflow and separate real-provider acceptance gates. Check the
+[release boundary](installation.md#released-package-and-main)
 when using npm.
 
 Provider selection and profile identity follow

@@ -11,7 +11,10 @@ import type {
 } from "../../../../src/hopper/BridgeLauncher.js";
 import { HopperClient } from "../../../../src/hopper/HopperClient.js";
 import { cleanupOwnedProcessGroup } from "../../../../src/process/ProcessOwnership.js";
-import { spawnOwnedProviderProcess } from "../../../../src/process/ProviderProcess.js";
+import {
+  acquireProviderProcessObservation,
+  spawnOwnedProviderProcess,
+} from "../../../../src/process/ProviderProcess.js";
 
 import {
   HopperFixtureLauncher as FixtureLauncher,
@@ -57,19 +60,21 @@ class UnconfirmedFixtureLauncher implements BridgeLauncher {
   constructor(readonly ownsProcessLifetime = false) {}
 
   launch(session: BridgeSession) {
+    const child = spawn(
+      process.execPath,
+      [
+        fixturePath,
+        session.socketPath,
+        session.token,
+        session.runId,
+        "unconfirmed",
+      ],
+      { stdio: ["ignore", "ignore", "pipe"] },
+    );
+    acquireProviderProcessObservation(child);
     return Promise.resolve(
       ok({
-        process: spawn(
-          process.execPath,
-          [
-            fixturePath,
-            session.socketPath,
-            session.token,
-            session.runId,
-            "unconfirmed",
-          ],
-          { stdio: ["ignore", "ignore", "pipe"] },
-        ),
+        process: child,
         ownsProcessLifetime: this.ownsProcessLifetime,
         providerLifetime: "external-application" as const,
         shutdownMode: "bridge-request" as const,
