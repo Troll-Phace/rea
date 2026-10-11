@@ -164,6 +164,8 @@ No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR 
 
 - P5-R18 scope/delivery checkpoint: user explicitly removes Linux from completion gates on 2026-10-10. Linux G2/Linux installed G3 remain unverified, optional coverage. All required macOS source/installed/local AC3/client/regression and bounded-review criteria pass. This record remains in-progress for final commit/PR and approved verified merge. Historical Phase 5 checkpoints are grouped under this record, preserving their original evidence and status. No Linux production or CI change and no inferred platform claim.
 
+- PR delivery checkpoint: implementation commit `439f56c77e3fa9d85f2d668c3f9d625996ea077f` pushed; [PR #5](https://github.com/Troll-Phace/rea/pull/5) open and attached. Normal hooks pass; the single equivalent precommit Set-iterable simplification passes all ten affected cleanup controls and renewed full static checks. Exact measured candidate/tarball identities remain preserved. User-requested test project is fully archived privately and removed with exact receipt; outside app-managed runtime resources remain retained. PSX-005 stays in-progress for concrete PR approval and verified merge; Linux remains optional/unverified.
+
 ## PSX-008 — PSX startup diagnostic truncation coverage gap
 
 - Status: open; type: test; severity: low; phase: Backlog; owner: orchestrator/test engineer.

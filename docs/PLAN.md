@@ -185,7 +185,7 @@ reviewed contract on 2026-10-10. The user-approved P5-R18 scope removes Linux
 from completion criteria while preserving its unverified status. Required macOS
 source/installed, local patched-AC3, three actual fresh-client scenarios, native
 regressions and bounded reviews pass; Phase 5 and PSX-005 remain open for PR and
-approved merge delivery. PSX-008 and PSX-010 remain deferred.
+approved merge delivery. [PR #5](https://github.com/Troll-Phace/rea/pull/5) is open; no merge approval yet. PSX-008 and PSX-010 remain deferred.
 
 Objective: establish actual support with separated evidence lanes. Dependencies: Phase 4. Delivery endpoint: supported host/version matrix verified, packaging complete, source unchanged, no hidden live gates.
 

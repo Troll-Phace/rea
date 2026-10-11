@@ -3,7 +3,7 @@
 Execution contract: [phase-5-plan.md](phase-5-plan.md), P5-R0 with bounded P5-R1/P5-R2/P5-R3/P5-R4/P5-R5/P5-R6/P5-R7/P5-R8/P5-R9/P5-R10/P5-R11/P5-R12/P5-R13/P5-R14/P5-R15/P5-R16/P5-R17/P5-R18, PSX-005.
 The user authorized execution on 2026-10-10. Implementation and acceptance are
 in progress on `codex/psx-phase-5`, from reconciled `main`
-`d35f97c314cfb3f5a60f5ff00ce92b03a3784727`. Full Phase 5 closure and delivery remain pending.
+`d35f97c314cfb3f5a60f5ff00ce92b03a3784727`. Implementation commit `439f56c77e3fa9d85f2d668c3f9d625996ea077f` is pushed and [PR #5](https://github.com/Troll-Phace/rea/pull/5) is open. Full Phase 5 closure awaits concrete approval and verified merge.
 
 ## Prerequisites and external gates
 
@@ -1005,3 +1005,11 @@ After the actual client review and native renewals, `npm run docs:check` passes 
 ## P5-R18 completion scope and delivery readiness
 
 The user explicitly removed Linux implementation/verification as a completion gate on 2026-10-10. Linux public G2 and Linux installed G3 are optional, unverified coverage; no Linux support is claimed. All required macOS G1/G3, selected patched-AC3 G4, three actual G5 scenarios and G6 controls/native regressions/bounded reviews pass. No source, package, provider, fixture or CI change follows from this scope amendment. Earlier Linux-blocked checkpoints are historical. Required final-content verification, commit/push/PR and user-approved verified merge remain G7; Phase 5/PSX-005 stay in-progress until delivery is satisfied.
+
+## Concrete PR and user-requested project removal
+
+Implementation commit `439f56c77e3fa9d85f2d668c3f9d625996ea077f` is pushed to `origin/codex/psx-phase-5`; [PR #5](https://github.com/Troll-Phace/rea/pull/5) is open and attached. No merge or automatic merge is authorized yet. PSX-005 stays in-progress until approved verified delivery.
+
+Normal precommit formatting/lint hooks make one source representation change in `CliCleanupScope`: `Promise.allSettled([...record.pending])` becomes `Promise.allSettled(record.pending)`. The private built-in Set is enumerated synchronously in both expressions before any asynchronous continuation, with identical promise inputs and settlement behavior. All ten actual cleanup-scope controls pass after the edit, as do renewed six-task static checks, 1326 module boundaries and 1018 architecture guards. The 96-path staging check excludes binaries/local payloads; all other precommit identities remain unchanged. Existing native/cold-installed/fresh-client reports retain the exact earlier candidate/tarball hashes; no newly built artifact is claimed to have that installed acceptance. This equivalent iterable simplification does not add a lifecycle behavior or platform claim.
+
+The user then explicitly asks to remove the temporary test project. Root rechecks the 22 preserved evidence files, archives the complete project privately (25 file/symlink entries with exact identities), and removes exactly `/private/tmp/rea-psx-client-nWJKWT/project`. Receipt `docs/psx-local/phase-5-client-runs/stage-OSRVHQ/project-removal-receipt.json` has SHA-256 `34c1f41ea063f27945e036f6d044c54e72229cf0fc8d57f526fdacc9a7847ad0`; original staging report and user records remain immutable in the private archive. The installed generated-skill symlink is preserved as a symlink. Process inspection observes app-owned MCP servers and recording workers; installed runtime/prefix/cache outside the requested project is retained. No process is signalled and complete OS process cleanup is not claimed. The earlier intentional-retention checkpoint is historical, superseded only for this requested project directory.
