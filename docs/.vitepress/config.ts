@@ -54,6 +54,7 @@ export default defineConfig({
           { text: "IDA", link: "/ida-provider" },
           { text: "Ghidra on Windows", link: "/windows-ghidra-p0" },
           { text: "Ghidra DOS analysis", link: "/ghidra-dos" },
+          { text: "Ghidra PS-X EXE analysis", link: "/ghidra-psx" },
           { text: "Ghidra NativeAOT", link: "/ghidra-nativeaot" },
           { text: "Ghidra semantics", link: "/ghidra-provider" },
         ],

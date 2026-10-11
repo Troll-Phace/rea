@@ -9,14 +9,30 @@ import type { AndroidOperation } from "../domain/android/androidAnalysis.js";
 import type { Logger } from "pino";
 import type { CliInstance } from "./types.js";
 import { withCommandCancellation } from "./commandCancellation.js";
+import type { CliCleanupScope } from "../composition/CliCleanupScope.js";
+import { ok } from "../domain/result.js";
 
 /** Expose the same explicit APK requests through one-shot CLI commands. */
 export const registerAndroidCommands = (
   cli: CliInstance,
   logger: Logger,
   environment: Readonly<Record<string, string | undefined>>,
+  cleanupScope?: CliCleanupScope,
 ): void => {
   const provider = createAndroidAnalysisProvider(environment);
+  if (cleanupScope !== undefined) {
+    const close = provider.close.bind(provider);
+    const owner = cleanupScope.register(provider, async () => {
+      await close();
+      return ok(undefined);
+    });
+    provider.close = async () => {
+      await cleanupScope.observe(owner, async () => {
+        await close();
+        return ok(undefined);
+      });
+    };
+  }
   const service = new AndroidAnalysisService(provider);
   const execute = (name: string, operation: AndroidOperation, input: unknown) =>
     withCommandCancellation((signal) =>

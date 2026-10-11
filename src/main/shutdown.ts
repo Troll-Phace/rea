@@ -5,39 +5,84 @@ import type { Logger } from "pino";
 import { AnalysisError } from "../domain/analysisErrorBase.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 import type { JsonValue } from "../domain/jsonValue.js";
-import type { RuntimeDependencies } from "./types.js";
+import type {
+  RuntimeCleanupOwner,
+  RuntimeDependencies,
+  RuntimeShutdown,
+  StartupCleanupState,
+} from "./types.js";
 import { MCP_SHUTDOWN_FAILED } from "./messages.js";
 
-interface ShutdownCleanupOwner {
-  readonly close: () => Promise<void>;
-  closed: boolean;
-}
+/** Startup exposes the exact provider owners before its failure is projected. */
+export const closeStartupProviders = async (
+  primary: unknown,
+  owners: readonly RuntimeCleanupOwner[],
+): Promise<StartupCleanupState> => {
+  const results = await Promise.allSettled(
+    owners.map(async (owner) => {
+      if (!owner.closed) {
+        await owner.close();
+        owner.closed = true;
+      }
+    }),
+  );
+  return {
+    primary,
+    owners,
+    failures: results.flatMap((result) =>
+      result.status === "rejected" ? [result.reason as unknown] : [],
+    ),
+  };
+};
 
 export const createShutdown = (input: {
-  readonly handle: StdioServerHandle;
+  readonly handle?: StdioServerHandle;
   readonly closeAndroid?: () => Promise<void>;
-  readonly session: BinarySession;
+  readonly session?: BinarySession;
   readonly dependencies: RuntimeDependencies;
   readonly serverLogger: Logger;
-}): {
-  readonly shutdown: () => Promise<void>;
-  readonly request: () => void;
-} => {
+  readonly providerCleanup?: StartupCleanupState;
+  readonly closeProcessOwnership?: () => Promise<void>;
+}): RuntimeShutdown => {
   const { handle, session, dependencies, serverLogger } = input;
   let shutdownAttempt: Promise<void> | undefined;
-  const cleanupOwners: ShutdownCleanupOwner[] = [
-    { close: () => handle.close(), closed: false },
+  const cleanupOwners: readonly RuntimeCleanupOwner[] = input.providerCleanup
+    ?.owners ?? [
+    ...(handle === undefined
+      ? []
+      : [{ id: "mcp-transport", close: () => handle.close(), closed: false }]),
     ...(input.closeAndroid === undefined
       ? []
-      : [{ close: input.closeAndroid, closed: false }]),
-    {
-      close: async () => {
-        const closed = await session.close({ retainProviderDocuments: true });
-        if (!closed.ok) throw closed.error;
-      },
-      closed: false,
-    },
+      : [
+          { id: "android-providers", close: input.closeAndroid, closed: false },
+        ]),
+    ...(session === undefined
+      ? []
+      : [
+          {
+            id: "binary-session",
+            close: async () => {
+              const closed = await session.close({
+                retainProviderDocuments: true,
+              });
+              if (!closed.ok) throw closed.error;
+            },
+            closed: false,
+          },
+        ]),
   ];
+  const inspector: RuntimeCleanupOwner = {
+    id: "process-inspector",
+    close:
+      input.closeProcessOwnership ??
+      dependencies.closeProcessOwnership ??
+      (async () => undefined),
+    closed: false,
+  };
+  const history: unknown[] =
+    input.providerCleanup === undefined
+      ? []
+      : [input.providerCleanup.primary, ...input.providerCleanup.failures];
   let shutdownUnregistered = false;
   let unregisterShutdown = (): void => undefined;
   const shutdown = async (): Promise<void> => {
@@ -53,12 +98,22 @@ export const createShutdown = (input: {
       const failures: unknown[] = [];
       for (const result of results)
         if (result.status === "rejected") failures.push(result.reason);
+      history.push(...failures);
       if (failures.length === 1) throw failures[0];
       if (failures.length > 1)
         throw new AggregateError(
           failures,
           "Multiple MCP cleanup operations failed",
         );
+      if (!inspector.closed) {
+        try {
+          await inspector.close();
+          inspector.closed = true;
+        } catch (cause: unknown) {
+          history.push(cause);
+          throw cause;
+        }
+      }
       if (!shutdownUnregistered) {
         unregisterShutdown();
         shutdownUnregistered = true;
@@ -84,7 +139,16 @@ export const createShutdown = (input: {
     });
   };
   unregisterShutdown = dependencies.registerShutdown(requestShutdown);
-  return { shutdown, request: requestShutdown };
+  return {
+    shutdown,
+    request: requestShutdown,
+    get failures() {
+      return history.slice();
+    },
+    get unresolvedOwners() {
+      return [...cleanupOwners, inspector].filter((owner) => !owner.closed);
+    },
+  };
 };
 
 const describeShutdownFailure = (
@@ -108,6 +172,9 @@ const describeShutdownFailureNode = (
       return {
         name: cause.name,
         message: cause.message,
+        ...(cause.cause === undefined
+          ? {}
+          : { cause: describeShutdownFailureNode(cause.cause, active) }),
         ...(typeof code === "string" ||
         (typeof code === "number" && Number.isFinite(code))
           ? { code }

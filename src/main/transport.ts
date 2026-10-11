@@ -6,9 +6,11 @@ import type { BinarySession } from "../application/binary/BinarySession.js";
 import type { Logger } from "pino";
 import { createServer } from "../server/createServer.js";
 import type { ToolResultDelivery } from "../server/toolResult.js";
-import type { RuntimeDependencies } from "./types.js";
+import type { RuntimeDependencies, StartupCleanupState } from "./types.js";
 import type { OptionalProviderLoadResult } from "../application/OptionalObservationProviders.js";
 import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
+import { AnalysisError } from "../domain/analysisErrorBase.js";
+import { closeStartupProviders } from "./shutdown.js";
 import {
   MCP_CONNECTION_LOST,
   MCP_CONNECTION_START_FAILED,
@@ -32,7 +34,7 @@ export const startMcpTransport = async (
       readonly handle: StdioServerHandle;
       readonly closeAndroid: () => Promise<void>;
     }
-  | { readonly ok: false }
+  | { readonly ok: false; readonly cleanup: StartupCleanupState }
 > => {
   const { serverLogger } = serverContext;
   let optionalProviders: OptionalProviderLoadResult = {};
@@ -55,12 +57,22 @@ export const startMcpTransport = async (
     );
   }
   const androidProviders: AndroidAnalysisPort[] = [];
+  const closedAndroid = new Set<AndroidAnalysisPort>();
   const closeAndroid = async (): Promise<void> => {
     const results = await Promise.allSettled(
-      androidProviders.map((provider) => provider.close()),
+      androidProviders
+        .filter((provider) => !closedAndroid.has(provider))
+        .map(async (provider) => {
+          await provider.close();
+          closedAndroid.add(provider);
+        }),
     );
-    for (const result of results)
-      if (result.status === "rejected") throw result.reason;
+    const failures = results.flatMap((result) =>
+      result.status === "rejected" ? [result.reason as unknown] : [],
+    );
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1)
+      throw new AggregateError(failures, "Android provider cleanup failed");
   };
   let handle: StdioServerHandle;
   try {
@@ -90,9 +102,16 @@ export const startMcpTransport = async (
       },
     );
   } catch (cause: unknown) {
-    const [binaryCleanup, androidCleanup] = await Promise.allSettled([
-      session.close(),
-      closeAndroid(),
+    const cleanup = await closeStartupProviders(cause, [
+      {
+        id: "binary-session",
+        closed: false,
+        close: async () => {
+          const result = await session.close();
+          if (!result.ok) throw result.error;
+        },
+      },
+      { id: "android-providers", closed: false, close: closeAndroid },
     ]);
     serverLogger.error(
       {
@@ -101,20 +120,17 @@ export const startMcpTransport = async (
       MCP_CONNECTION_START_FAILED,
     );
     dependencies.writeStderr(`${MCP_CONNECTION_START_FAILED}\n`);
-    if (binaryCleanup.status === "fulfilled" && !binaryCleanup.value.ok) {
-      const cleanupError = projectAnalysisError(binaryCleanup.value.error);
-      serverLogger.error(
-        { cleanup_error: cleanupError },
-        "Binary provider cleanup failed after MCP startup",
-      );
-      dependencies.writeStderr(`${cleanupError.message}\n`);
-    }
-    for (const cleanup of [binaryCleanup, androidCleanup]) {
-      if (cleanup.status === "rejected") {
+    for (const failure of cleanup.failures) {
+      if (failure instanceof AnalysisError) {
+        const projected = projectAnalysisError(failure);
+        serverLogger.error(
+          { cleanup_error: projected },
+          "Binary provider cleanup failed after MCP startup",
+        );
+        dependencies.writeStderr(`${projected.message}\n`);
+      } else {
         const reason =
-          cleanup.reason instanceof Error
-            ? cleanup.reason.message
-            : String(cleanup.reason);
+          failure instanceof Error ? failure.message : String(failure);
         serverLogger.error(
           { cleanup_error: reason },
           "Provider cleanup rejected after MCP startup",
@@ -122,7 +138,7 @@ export const startMcpTransport = async (
         dependencies.writeStderr(`Provider cleanup failed: ${reason}\n`);
       }
     }
-    return { ok: false };
+    return { ok: false, cleanup };
   }
   return { ok: true, handle, closeAndroid };
 };

@@ -1,10 +1,24 @@
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { access, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { expect } from "vitest";
+import { expect, it, vi } from "vitest";
+import { randomUUID } from "node:crypto";
+import {
+  ProcessCleanupScope,
+  withProcessCleanupScope,
+} from "../../../src/process/ProcessCleanupScope.js";
+import { TerminalRenderer } from "../../../src/process/capture/TerminalRenderer.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 import { itWithCaptureCapability } from "./processCaptureCapability.js";
 
@@ -14,6 +28,8 @@ import { snapshotRoots } from "../../../src/process/capture/FilesystemSnapshot.j
 import { ProcessCaptureError } from "../../../src/process/capture/ProcessCaptureError.js";
 import {
   type ProcessCaptureCleanupHost,
+  ProcessCaptureCleanupOwner,
+  prepareProcessCapture,
   observeLaunchedExecutable,
   observeSelectedExecutable,
 } from "../../../src/process/capture/ProcessCaptureLifecycle.js";
@@ -59,7 +75,10 @@ const expectUnverifiedHostCleanup = (error: ProcessCaptureError): void => {
     /^(?:[1-9][0-9]*=(?:environment_unavailable|environment_errno_(?:EACCES|EPERM)))(?:, [1-9][0-9]*=(?:environment_unavailable|environment_errno_(?:EACCES|EPERM)))*$/u,
   );
   expect(report?.terminal_renderer.state).toBe("cleaned");
-  expect(report?.temporary_root.state).toBe("cleaned");
+  expect(report?.temporary_root.state).toBe("failed");
+  expect(report?.temporary_root.reason).toMatch(
+    /retained until renderer and process cleanup settle/u,
+  );
 };
 
 const captureObservations = (
@@ -236,92 +255,120 @@ itWithCaptureCapability(
         };
       throw new Error("fixture final snapshot failure");
     };
+    const scope = new ProcessCleanupScope();
+    let cleanupAllowed = false;
+    let removedRoot: string | undefined;
     const cleanupHost: ProcessCaptureCleanupHost = {
       platform: process.platform,
-      cleanupProcessGroup: async () => ({
-        cleaned: false,
-        reason: "fixture cleanup could not be verified",
-      }),
-      verifyTokenOwnedProcesses: async () => ({
-        cleaned: false,
-        reason: "fixture cleanup could not be verified",
-      }),
-      removeTemporaryRoot: async (path) =>
-        rm(path, { recursive: true, force: true }),
+      cleanupProcessGroup: async () =>
+        cleanupAllowed
+          ? { cleaned: true, signaled: false }
+          : { cleaned: false, reason: "fixture cleanup could not be verified" },
+      verifyTokenOwnedProcesses: async () =>
+        cleanupAllowed
+          ? { cleaned: true, signaled: false }
+          : { cleaned: false, reason: "fixture cleanup could not be verified" },
+      removeTemporaryRoot: async (path) => {
+        removedRoot = path;
+        await rm(path, { recursive: true, force: true });
+      },
     };
-    const result = await captureProcessScenario(
-      parseProcessScenario({
-        executable: process.execPath,
-        arguments: [processFixture, "partial"],
-        working_directory: dirname(processFixture),
-        settle_ms: 0,
-        timeout_ms: 5_000,
-        idle_timeout_ms: 5_000,
-      }),
-      undefined,
-      process.platform,
-      process.env,
-      captureSnapshot,
-      cleanupHost,
-    );
+    try {
+      const result = await withProcessCleanupScope(scope, () =>
+        captureProcessScenario(
+          parseProcessScenario({
+            executable: process.execPath,
+            arguments: [processFixture, "partial"],
+            working_directory: dirname(processFixture),
+            settle_ms: 0,
+            timeout_ms: 5_000,
+            idle_timeout_ms: 5_000,
+          }),
+          undefined,
+          process.platform,
+          process.env,
+          captureSnapshot,
+          cleanupHost,
+        ),
+      );
 
-    if (result.ok) throw new Error("expected cleanup-incomplete failure");
-    if (!(result.error instanceof ProcessCaptureError)) throw result.error;
-    const partial = result.error.partialObservation;
-    expect(result.error.reason).toBe("cleanup_incomplete");
-    expect(result.error.executionFailure).toBe(
-      "fixture final snapshot failure",
-    );
-    const projected = projectAnalysisError(result.error);
-    expect(projected).toMatchObject({
-      code: "cleanup_incomplete",
-      details: { cleanup: "incomplete", resources: ["owned_process_group"] },
-    });
-    expect(projected).not.toHaveProperty("stack");
-    expect(projected).not.toHaveProperty("cause");
-    expect(partial).toBeDefined();
-    if (partial === undefined || !("observations" in partial))
-      throw new Error("expected incomplete process observations");
-    const observations = partial.observations;
-    expect(observations.frames.state).toBe("available");
-    if (observations.frames.state !== "available")
-      throw new Error("expected terminal output observations");
-    expect(
-      observations.frames.value.map(({ data }) => data).join(""),
-    ).toContain("partial-frame");
-    expect(observations.rendered_frames.state).toBe("available");
-    if (observations.rendered_frames.state !== "available")
-      throw new Error("expected rendered terminal observations");
-    expect(observations.rendered_frames.value.length).toBeGreaterThan(0);
-    expect(observations.interaction_events.state).toBe("available");
-    expect(observations.exit).toMatchObject({
-      state: "available",
-      value: { reason: "exited" },
-    });
-    expect(observations.settlement.state).toBe("available");
-    expect(observations.process_samples.state).toBe("available");
-    expect(observations.target_pid).toEqual({ state: "available", value: 1 });
-    expect(observations.filesystem_snapshots.before.state).toBe("available");
-    if (observations.filesystem_snapshots.before.state !== "available")
-      throw new Error("expected initial filesystem snapshot");
-    expect(observations.filesystem_snapshots.before.value.truncated).toBe(
-      false,
-    );
-    expect(observations.filesystem_snapshots.after).toEqual({
-      state: "unavailable",
-      reason:
-        "Final filesystem snapshot failed: fixture final snapshot failure",
-    });
-    expect(observations.event_journal.state).toBe("available");
-    if (observations.event_journal.state !== "available")
-      throw new Error("expected capture event journal");
-    expect(
-      observations.event_journal.value.some(
-        ({ collection }) => collection === "lifecycle",
-      ),
-    ).toBe(true);
-    expect(observations.manifest.state).toBe("unavailable");
-    expect(snapshotCalls).toBe(2);
+      if (result.ok) throw new Error("expected cleanup-incomplete failure");
+      if (!(result.error instanceof ProcessCaptureError)) throw result.error;
+      const partial = result.error.partialObservation;
+      expect(result.error.reason).toBe("cleanup_incomplete");
+      expect(result.error.executionFailure).toBe(
+        "fixture final snapshot failure",
+      );
+      const projected = projectAnalysisError(result.error);
+      expect(projected).toMatchObject({
+        code: "cleanup_incomplete",
+        details: {
+          cleanup: "incomplete",
+          resources: ["owned_process_group", "temporary_root"],
+        },
+      });
+      expect(projected).not.toHaveProperty("stack");
+      expect(projected).not.toHaveProperty("cause");
+      expect(partial).toBeDefined();
+      if (partial === undefined || !("observations" in partial))
+        throw new Error("expected incomplete process observations");
+      const observations = partial.observations;
+      expect(observations.frames.state).toBe("available");
+      if (observations.frames.state !== "available")
+        throw new Error("expected terminal output observations");
+      expect(
+        observations.frames.value.map(({ data }) => data).join(""),
+      ).toContain("partial-frame");
+      expect(observations.rendered_frames.state).toBe("available");
+      if (observations.rendered_frames.state !== "available")
+        throw new Error("expected rendered terminal observations");
+      expect(observations.rendered_frames.value.length).toBeGreaterThan(0);
+      expect(observations.interaction_events.state).toBe("available");
+      expect(observations.exit).toMatchObject({
+        state: "available",
+        value: { reason: "exited" },
+      });
+      expect(observations.settlement.state).toBe("available");
+      expect(observations.process_samples.state).toBe("available");
+      expect(observations.target_pid).toEqual({ state: "available", value: 1 });
+      expect(observations.filesystem_snapshots.before.state).toBe("available");
+      if (observations.filesystem_snapshots.before.state !== "available")
+        throw new Error("expected initial filesystem snapshot");
+      expect(observations.filesystem_snapshots.before.value.truncated).toBe(
+        false,
+      );
+      expect(observations.filesystem_snapshots.after).toEqual({
+        state: "unavailable",
+        reason:
+          "Final filesystem snapshot failed: fixture final snapshot failure",
+      });
+      expect(observations.event_journal.state).toBe("available");
+      if (observations.event_journal.state !== "available")
+        throw new Error("expected capture event journal");
+      expect(
+        observations.event_journal.value.some(
+          ({ collection }) => collection === "lifecycle",
+        ),
+      ).toBe(true);
+      expect(observations.manifest.state).toBe("unavailable");
+      expect(snapshotCalls).toBe(2);
+      expect(removedRoot).toBeUndefined();
+      const receipt = await scope.close();
+      expect(receipt.settled).toBe(false);
+      expect(receipt.unresolved).toHaveLength(1);
+      expect(removedRoot).toBeUndefined();
+      cleanupAllowed = true;
+      expect(await receipt.unresolved[0]?.retry()).toMatchObject({
+        settled: true,
+      });
+      if (removedRoot === undefined)
+        throw new Error("cleanup never removed its retained root");
+      await expect(access(removedRoot)).rejects.toThrow();
+      expect(projected).toMatchObject({ code: "cleanup_incomplete" });
+    } finally {
+      cleanupAllowed = true;
+      await scope.close();
+    }
   },
   10_000,
 );
@@ -728,4 +775,235 @@ itWithCaptureCapability(
     expect(stdout).not.toContain(`${processFixture} tree-grandchild`);
   },
   20_000,
+);
+
+it("retains an allocated capture generation when baseline preparation and removal both fail", async () => {
+  const temporaryRoot = await createTestTempDirectory(
+    "rea-capture-prepare-retained-",
+  );
+  const scope = new ProcessCleanupScope();
+  const primary = new Error("controlled baseline unavailable");
+  const cleanupFailure = new Error(
+    "controlled preparation root removal denied",
+  );
+  let allowed = false;
+  const remove = vi.fn(async (path: string) => {
+    if (!allowed) throw cleanupFailure;
+    await rm(path, { recursive: true, force: true });
+  });
+  try {
+    await expect(
+      withProcessCleanupScope(scope, () =>
+        prepareProcessCapture(
+          parseProcessScenario({
+            executable: process.execPath,
+            working_directory: temporaryRoot,
+          }),
+          undefined,
+          async () => ({
+            files: [],
+            truncated: false,
+            completeRoots: [],
+            coverage: emptyFilesystemCoverage,
+          }),
+          {
+            createTemporaryRoot: async () => temporaryRoot,
+            captureOwnershipBaseline: async () => {
+              throw primary;
+            },
+            cleanup: remove,
+          },
+        ),
+      ),
+    ).rejects.toMatchObject({
+      reason: "cleanup_incomplete",
+      executionFailure: "controlled baseline unavailable",
+    });
+    await expect(access(temporaryRoot)).resolves.toBeUndefined();
+    const retained = await scope.close();
+    expect(retained.settled).toBe(false);
+    expect(retained.unresolved[0]?.identity.kind).toBe("process-capture");
+    allowed = true;
+    expect(await retained.unresolved[0]?.retry()).toMatchObject({
+      settled: true,
+    });
+    await expect(access(temporaryRoot)).rejects.toThrow();
+    expect(retained.failures.length).toBeGreaterThan(0);
+  } finally {
+    allowed = true;
+    await scope.close();
+  }
+});
+
+itWithCaptureCapability.each([
+  "sampling",
+  "renderer",
+  "process",
+  "temporary",
+] as const)(
+  "retains acquired PTY components through %s cleanup failure and retries only unsettled components",
+  async (component) => {
+    const { spawn } = await import("@lydell/node-pty");
+    const temporaryRoot = await createTestTempDirectory(
+      "rea-capture-owner-components-",
+    );
+    const runId = randomUUID();
+    const scope = new ProcessCleanupScope();
+    let allowed = false;
+    const failure = new Error(`controlled ${component} cleanup denied`);
+    const terminal = spawn(
+      process.execPath,
+      ["-e", 'process.stdout.write("ready\\n"); setInterval(()=>{},1000)'],
+      {
+        cwd: temporaryRoot,
+        env: { ...process.env, REA_PROCESS_RUN_ID: runId },
+        cols: 80,
+        rows: 24,
+      },
+    );
+    const exited = new Promise<void>((resolve) =>
+      terminal.onExit(() => resolve()),
+    );
+    const renderer = new TerminalRenderer({
+      columns: 80,
+      rows: 24,
+      scrollback: 10,
+      maxBytes: 1024,
+      normalize: (text) => text,
+    });
+    const originalDispose = renderer.dispose.bind(renderer);
+    const dispose = vi
+      .spyOn(renderer, "dispose")
+      .mockImplementation(async () => {
+        if (component === "renderer" && !allowed) throw failure;
+        await originalDispose();
+      });
+    const cleanupProcessGroup = vi.fn(
+      async (
+        ownership: Parameters<
+          ProcessCaptureCleanupHost["cleanupProcessGroup"]
+        >[0],
+      ) => {
+        expect(ownership.runId).toBe(runId);
+        expect(ownership.leaderPid).toBe(terminal.pid);
+        if (component === "process" && !allowed)
+          return { cleaned: false as const, reason: failure.message };
+        terminal.kill("SIGTERM");
+        await exited;
+        return { cleaned: true as const, signaled: true };
+      },
+    );
+    const removeTemporaryRoot = vi.fn(async (path: string) => {
+      if (component === "temporary" && !allowed) throw failure;
+      await rm(path, { recursive: true, force: true });
+    });
+    const owner = await withProcessCleanupScope(scope, async () => {
+      const owned = new ProcessCaptureCleanupOwner(temporaryRoot, runId, {
+        platform: process.platform,
+        cleanupProcessGroup,
+        verifyTokenOwnedProcesses: async () => ({
+          cleaned: true,
+          signaled: false,
+        }),
+        removeTemporaryRoot,
+      });
+      await owned.captureGeneration();
+      owned.terminal = terminal;
+      owned.renderer = renderer;
+      owned.stopSampler = vi.fn(async () => {
+        if (component === "sampling" && !allowed) throw failure;
+      });
+      return owned;
+    });
+    try {
+      const report = await owner.closeReport();
+      expect(report.temporary_root.state).toBe("failed");
+      await expect(access(temporaryRoot)).resolves.toBeUndefined();
+      expect(scope.owners[0]?.status).toBe("unresolved");
+      const rendererCalls = dispose.mock.calls.length;
+      const processCalls = cleanupProcessGroup.mock.calls.length;
+      allowed = true;
+      expect(await scope.owners[0]?.retry()).toMatchObject({ settled: true });
+      await expect(access(temporaryRoot)).rejects.toThrow();
+      if (component === "temporary") {
+        expect(dispose).toHaveBeenCalledTimes(rendererCalls);
+        expect(cleanupProcessGroup).toHaveBeenCalledTimes(processCalls);
+      }
+      if (component === "process")
+        expect(dispose).toHaveBeenCalledTimes(rendererCalls);
+      expect(await scope.close()).toMatchObject({
+        settled: true,
+        unresolved: [],
+        failures: expect.any(Array),
+      });
+    } finally {
+      allowed = true;
+      await scope.close();
+      terminal.kill("SIGKILL");
+      await exited;
+      dispose.mockRestore();
+    }
+  },
+);
+
+it.each(["directory", "symlink"] as const)(
+  "refuses a capture-root %s replacement and removes only the restored generation",
+  async (replacement) => {
+    const parent = await createTestTempDirectory(
+      "rea-capture-generation-test-",
+    );
+    const temporaryRoot = join(parent, "owned");
+    const original = join(parent, "original");
+    const neighbor = join(parent, "neighbor");
+    await mkdir(temporaryRoot);
+    await mkdir(neighbor);
+    await writeFile(join(neighbor, "sentinel"), "unrelated neighbor");
+    const scope = new ProcessCleanupScope();
+    const remove = vi.fn(async (path: string) =>
+      rm(path, { recursive: true, force: true }),
+    );
+    const owner = await withProcessCleanupScope(scope, async () => {
+      const owned = new ProcessCaptureCleanupOwner(
+        temporaryRoot,
+        randomUUID(),
+        {
+          platform: process.platform,
+          cleanupProcessGroup: async () => ({ cleaned: true, signaled: false }),
+          verifyTokenOwnedProcesses: async () => ({
+            cleaned: true,
+            signaled: false,
+          }),
+          removeTemporaryRoot: remove,
+        },
+      );
+      await owned.captureGeneration();
+      return owned;
+    });
+    await rename(temporaryRoot, original);
+    if (replacement === "symlink") await symlink(neighbor, temporaryRoot);
+    else {
+      await mkdir(temporaryRoot);
+      await writeFile(join(temporaryRoot, "replacement"), "new generation");
+    }
+    try {
+      expect((await owner.closeReport()).temporary_root).toMatchObject({
+        state: "failed",
+        reason: "Capture temporary root generation changed",
+      });
+      expect(remove).not.toHaveBeenCalled();
+      expect(await readFile(join(neighbor, "sentinel"), "utf8")).toBe(
+        "unrelated neighbor",
+      );
+      await rm(temporaryRoot, { recursive: true, force: true });
+      await rename(original, temporaryRoot);
+      expect(await scope.owners[0]?.retry()).toMatchObject({ settled: true });
+      expect(remove).toHaveBeenCalledOnce();
+      await expect(access(temporaryRoot)).rejects.toThrow();
+      expect(await readFile(join(neighbor, "sentinel"), "utf8")).toBe(
+        "unrelated neighbor",
+      );
+    } finally {
+      await scope.close();
+    }
+  },
 );

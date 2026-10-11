@@ -19,6 +19,7 @@ import pino from "pino";
 import type { Logger } from "pino";
 
 import { ok } from "../../../../src/domain/result.js";
+import { acquireProviderProcessObservation } from "../../../../src/process/ProviderProcess.js";
 import { GhidraClient } from "../../../../src/ghidra/GhidraClient.js";
 import { GhidraHeadlessLauncher } from "../../../../src/ghidra/GhidraLauncher.js";
 import type { GhidraDiagnostic } from "../../../../src/ghidra/GhidraClientTypes.js";
@@ -114,6 +115,7 @@ class FixtureLauncher implements GhidraLauncher {
         }),
       },
     });
+    acquireProviderProcessObservation(process_);
     process_.on("message", (value: unknown) => {
       if (
         typeof value === "object" &&
@@ -1116,6 +1118,7 @@ const psxClient = async (mutation?: PsxClientMutation) => {
           }),
         },
       });
+      acquireProviderProcessObservation(child);
       child.on("message", (value: unknown) => {
         if (
           typeof value === "object" &&
@@ -1428,12 +1431,14 @@ describe.skipIf(process.platform === "win32")(
           javaHome: join(root, "jdk"),
           analyzeHeadlessPath: "/unused/ghidra/support/analyzeHeadless",
           bridgeScriptPath: "/unused/rea/ReaGhidraBridge.java",
-          spawnProcess: async ({ runId }) => {
+          spawnProcess: async ({ runId, observation, onAcquired }) => {
             const spawned = spawn(
               process.execPath,
               ["-e", "setInterval(() => {}, 1000)"],
               { detached: true, stdio: ["ignore", "pipe", "pipe"] },
             );
+            acquireProviderProcessObservation(spawned, observation);
+            onAcquired?.(spawned);
             child = spawned;
             await new Promise<void>((resolve, reject) => {
               spawned.once("spawn", () => resolve());

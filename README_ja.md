@@ -152,6 +152,8 @@ REA には Node.js 22.x（>=22.19）、24.x（>=24.11）、または 26+ と npm
 
 対応するネイティブ形式とホストは、プロバイダーによって異なります。[Hopper と Ghidra のセットアップ](docs/installation.md#hopper)、[IDA ガイド](docs/ida-provider.md)、[Windows 向け Ghidra の実験的対応](docs/windows-ghidra-p0.md)を参照してください。Ghidra は [16 ビット DOS 分析](docs/ghidra-dos.md)にも対応しています。プロバイダーの選択は [CLI ガイド](docs/cli.md#choose-a-provider)を参照してください。最新の npm リリース以降に追加された機能については、[リリースでの利用可否](docs/installation.md#released-package-and-main)を確認してください。
 
+PS-X EXE (Ghidra): [ガイド](docs/ghidra-psx.md).
+
 ## 事例
 
 [![DX-Ball の音声パン、Notion のクリップボードブリッジ、TH04 の弾幕リングの事例を表すイラスト](docs/assets/rea-showcases.png)](https://rea.tools/showcase/)

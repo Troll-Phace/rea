@@ -1,6 +1,7 @@
 import type {
   OwnedProviderProcessSpawnOptions,
   ProviderProcessSnapshot,
+  ProviderProcessDiagnostic,
   SpawnedOwnedProviderProcess,
 } from "./ProviderProcess.js";
 import {
@@ -77,11 +78,23 @@ const collectOwnedCommand = async (
   callerSignal?: AbortSignal,
 ): Promise<ProviderProcessSnapshot> => {
   const signal = deadline.signal;
+  let exceeded = false;
+  let processFailure: string | undefined;
+  const onDiagnostic = (event: ProviderProcessDiagnostic): void => {
+    if (event.type === "output" && event.truncated === true) exceeded = true;
+    if (event.type === "error") processFailure = event.message;
+    spawn.observation?.onDiagnostic?.(event);
+  };
   let launched: SpawnedOwnedProviderProcess;
   try {
     launched = await launcher({
       ...spawn,
       signal,
+      observation: {
+        captureStdout: true,
+        maxDiagnosticBytes: limits.diagnosticBytes,
+        onDiagnostic,
+      },
     });
   } catch (cause: unknown) {
     const interruption = deadline.interruption;
@@ -97,8 +110,6 @@ const collectOwnedCommand = async (
       );
     throw cause;
   }
-  let exceeded = false;
-  let processFailure: string | undefined;
   const supervisor = new ProviderProcessSupervisor(
     {
       ...launched,
@@ -109,15 +120,20 @@ const collectOwnedCommand = async (
     },
     {
       maxDiagnosticBytes: limits.diagnosticBytes,
-      onDiagnostic: (event) => {
-        if (event.type === "output" && event.truncated === true)
-          exceeded = true;
-        if (event.type === "error") processFailure = event.message;
-      },
+      onDiagnostic,
     },
   );
+  const observation = supervisor.observation();
+  exceeded ||= observation.snapshot.diagnosticTruncated === true;
+  processFailure ??= observation.errors[0]?.message;
   let failure: OwnedCommandFailure | undefined;
   try {
+    if (observation.coverage !== "complete")
+      throw new OwnedCommandFailure(
+        "process",
+        "Command diagnostics before process acquisition are unavailable.",
+        supervisor.snapshot(),
+      );
     while (!(await supervisor.waitForOutputClose(10))) {
       const interruption = deadline.interruption;
       if (interruption !== undefined)
@@ -137,6 +153,8 @@ const collectOwnedCommand = async (
       await waitForAbortableDelay(25, signal);
     }
     const snapshot = supervisor.snapshot();
+    exceeded ||= snapshot.diagnosticTruncated === true;
+    processFailure ??= supervisor.observation().errors[0]?.message;
     const interruption = deadline.interruption;
     if (interruption !== undefined)
       throw new OwnedCommandFailure(
@@ -183,7 +201,7 @@ const collectOwnedCommand = async (
   }
   const stopped = await supervisor.stop();
   const snapshot = supervisor.snapshot();
-  supervisor.dispose();
+  if (stopped.status !== "incomplete") supervisor.dispose();
   if (stopped.status === "incomplete")
     throw new OwnedCommandFailure(
       failure?.reason ?? "process",

@@ -9,6 +9,7 @@ import { finished } from "node:stream/promises";
 import type {
   OwnedProviderProcessSpawnOptions,
   SpawnedOwnedProviderProcess,
+  ProviderProcessHandle,
 } from "../process/ProviderProcess.js";
 import {
   ProviderProcessSupervisor,
@@ -33,6 +34,7 @@ export class JadxMcpTransport implements Transport {
   readonly runId = randomUUID();
   #spawned: SpawnedOwnedProviderProcess | undefined;
   #supervisor: ProviderProcessSupervisor | undefined;
+  #protocolProcess: ProviderProcessHandle | undefined;
   #frameBuffer = Buffer.alloc(0);
   #frameLength = 0;
   #bytes = 0;
@@ -61,6 +63,23 @@ export class JadxMcpTransport implements Transport {
       ...this.options,
       runId: this.runId,
       stdin: "pipe",
+      observation: { captureStdout: false },
+      onAcquired: (process) => {
+        if (this.#protocolProcess !== undefined)
+          throw new Error("JADX protocol process already acquired");
+        this.#protocolProcess = process;
+        if (
+          process.stdin === undefined ||
+          process.stdin === null ||
+          process.stdout === null
+        )
+          throw new Error("JADX launcher did not supply protocol stdin/stdout");
+        process.stdout.on("data", this.#read);
+        process.stderr?.on("data", this.#countStderr);
+        process.on("error", this.#error);
+        process.once("exit", this.#exit);
+        process.stdin.on("error", this.#error);
+      },
     });
     this.#spawned = spawned;
     this.#supervisor = new ProviderProcessSupervisor(
@@ -73,17 +92,14 @@ export class JadxMcpTransport implements Transport {
       },
       { captureStdout: false },
     );
-    if (
-      spawned.process.stdin === undefined ||
-      spawned.process.stdin === null ||
-      spawned.process.stdout === null
-    )
-      throw new Error("JADX launcher did not supply protocol stdin/stdout");
-    spawned.process.stdout.on("data", this.#read);
-    spawned.process.stderr?.on("data", this.#countStderr);
-    spawned.process.on("error", this.#error);
-    spawned.process.once("exit", this.#exit);
-    spawned.process.stdin.on("error", this.#error);
+    if (this.#protocolProcess !== spawned.process)
+      throw new Error(
+        "JADX launcher did not invoke the synchronous acquisition hook for its actual process",
+      );
+    if (this.#supervisor.observation().coverage !== "complete")
+      throw new Error(
+        "JADX diagnostics before process acquisition are unavailable",
+      );
     if (this.#closed) throw new Error("JADX transport closed during startup");
   }
 
@@ -134,6 +150,8 @@ export class JadxMcpTransport implements Transport {
     this.#frameBuffer = Buffer.alloc(0);
     this.#frameLength = 0;
     // A cancellation may race acquisition. Join it before inspecting ownership.
+    // A synchronous acquisition hook can initiate closure before start assigns its promise.
+    await Promise.resolve();
     await this.#starting?.catch(() => undefined);
     const process = this.#spawned?.process;
     process?.stdout?.off("data", this.#read);

@@ -37,12 +37,12 @@ import {
   observeSelectedExecutable,
   observeSettlement,
   prepareProcessCapture,
-  releaseProcessResources,
   resolveProcessResult,
   settleProcessCaptureJournal,
   type ProcessCaptureCleanupHost,
   type ProcessCaptureObservationBuffer,
   type PendingProcessCapture,
+  type ProcessCaptureCleanupOwner,
 } from "./ProcessCaptureLifecycle.js";
 import {
   assertNotCancelled,
@@ -79,6 +79,7 @@ const cleanupFailedStartup = async (options: {
   readonly cleanupHost?: ProcessCaptureCleanupHost;
   readonly observations?: ProcessCaptureObservationBuffer;
   readonly temporaryRoot: string;
+  readonly cleanupOwner: ProcessCaptureCleanupOwner;
 }): Promise<never> => {
   const sampledProcessGroupIds =
     options.terminal !== undefined &&
@@ -101,16 +102,8 @@ const cleanupFailedStartup = async (options: {
       };
     }
   }
-  const cleanupFailure = await releaseProcessResources({
-    timers: options.timers,
-    terminal: options.terminal,
-    renderer: options.renderer,
-    runId: options.runId,
-    captureBaseline: options.captureBaseline,
-    ...(sampledProcessGroupIds === undefined ? {} : { sampledProcessGroupIds }),
-    temporaryRoot: options.temporaryRoot,
-    ...(options.cleanupHost === undefined ? {} : { host: options.cleanupHost }),
-  });
+  options.cleanupOwner.sampledProcessGroupIds = sampledProcessGroupIds;
+  const cleanupFailure = await options.cleanupOwner.closeReport();
   if (cleanupReportFailure(cleanupFailure) !== undefined) {
     resolveProcessResult(
       undefined,
@@ -145,6 +138,7 @@ const createTerminalRenderer = (
   });
 
 interface StartCaptureRuntimeOptions {
+  readonly cleanupOwner: ProcessCaptureCleanupOwner;
   readonly scenario: ProcessScenario;
   readonly hostEnvironment: Readonly<Record<string, string | undefined>>;
   readonly temporaryRoot: string;
@@ -183,6 +177,7 @@ const startCaptureRuntime = async (
       () => terminal?.pid ?? -1,
       options.recordEvent,
     );
+    options.cleanupOwner.renderer = renderer;
     terminal = spawn(scenario.executable, [...scenario.arguments], {
       cwd: scenario.working_directory,
       env: makeProcessCaptureEnvironment(options),
@@ -190,6 +185,7 @@ const startCaptureRuntime = async (
       rows: scenario.terminal.rows,
       name: "xterm-256color",
     });
+    options.cleanupOwner.terminal = terminal;
     options.onSpawn(terminal.pid);
     options.observationBuffer.target_pid = {
       state: "available",
@@ -220,6 +216,7 @@ const startCaptureRuntime = async (
       samples: options.samples,
       recordEvent: options.recordEvent,
     });
+    options.cleanupOwner.stopSampler = stopSampler;
     return {
       renderer,
       terminal,
@@ -244,11 +241,13 @@ const startCaptureRuntime = async (
         : { cleanupHost: options.cleanupHost }),
       observations: options.observationBuffer,
       temporaryRoot: options.temporaryRoot,
+      cleanupOwner: options.cleanupOwner,
     });
   }
 };
 
 const finishProcessRun = async (options: {
+  readonly cleanupOwner: ProcessCaptureCleanupOwner;
   readonly runtime: StartedCaptureRuntime | undefined;
   readonly timers: Set<ProcessTimer>;
   readonly runId: string;
@@ -263,7 +262,6 @@ const finishProcessRun = async (options: {
   readonly observations?: ProcessCaptureObservationBuffer;
   readonly rootPid?: number;
 }): Promise<ProcessCapture> => {
-  await options.stopSampler();
   const sampledProcessGroupIds =
     options.runtime === undefined
       ? undefined
@@ -271,16 +269,12 @@ const finishProcessRun = async (options: {
           options.runtime.terminal.pid,
           options.samples,
         ).filter((groupId) => groupId !== options.runtime?.terminal.pid);
-  const cleanup = await releaseProcessResources({
-    timers: options.timers,
-    terminal: options.runtime?.terminal,
-    renderer: options.runtime?.renderer,
-    runId: options.runId,
-    captureBaseline: options.captureBaseline,
-    ...(sampledProcessGroupIds === undefined ? {} : { sampledProcessGroupIds }),
-    temporaryRoot: options.temporaryRoot,
-    ...(options.cleanupHost === undefined ? {} : { host: options.cleanupHost }),
-  });
+  options.cleanupOwner.sampledProcessGroupIds = sampledProcessGroupIds;
+  const cleanup =
+    options.runtime === undefined &&
+    options.cleanupOwner.lastReport !== undefined
+      ? options.cleanupOwner.lastReport
+      : await options.cleanupOwner.closeReport();
   const cleanupFailure = cleanupReportFailure(cleanup);
   let { capture, executionFailure } = options;
   let verifiedCapture: ProcessCapture | undefined;
@@ -469,7 +463,7 @@ const runProcessScenario = async (
   captureSnapshot: typeof snapshotRoots = snapshotRoots,
   cleanupHost?: ProcessCaptureCleanupHost,
 ): Promise<ProcessCapture> => {
-  const { temporaryRoot, runId, ownershipBaseline, before } =
+  const { temporaryRoot, runId, ownershipBaseline, before, cleanupOwner } =
     await prepareProcessCapture(scenario, signal, captureSnapshot);
   const frames: TerminalFrame[] = [];
   const samples: ProcessSample[] = [];
@@ -486,7 +480,8 @@ const runProcessScenario = async (
   });
   let runtime: StartedCaptureRuntime | undefined;
   let actualRootPid: number | undefined;
-  const timers = new Set<ProcessTimer>();
+  const timers = cleanupOwner.timers;
+  if (cleanupHost !== undefined) cleanupOwner.host = cleanupHost;
   let capture: PendingProcessCapture | undefined;
   let executionFailure: unknown;
   let stopSampler = async () => ({ partial: false });
@@ -494,6 +489,7 @@ const runProcessScenario = async (
 
   try {
     runtime = await startCaptureRuntime({
+      cleanupOwner,
       scenario,
       hostEnvironment,
       temporaryRoot,
@@ -577,6 +573,7 @@ const runProcessScenario = async (
     }
   }
   return finishProcessRun({
+    cleanupOwner,
     runtime,
     timers,
     runId,

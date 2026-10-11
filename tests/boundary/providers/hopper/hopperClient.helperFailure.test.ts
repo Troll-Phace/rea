@@ -8,6 +8,7 @@ import { ok } from "../../../../src/domain/result.js";
 import type { BridgeLauncher } from "../../../../src/hopper/BridgeLauncher.js";
 import { HopperApplicationLauncher } from "../../../../src/hopper/BridgeLauncher.js";
 import { HopperClient } from "../../../../src/hopper/HopperClient.js";
+import { acquireProviderProcessObservation } from "../../../../src/process/ProviderProcess.js";
 
 const projectPrimaryStartupFailure = (error: AnalysisError) => {
   if (!error.cleanupIncomplete) return projectAnalysisError(error);
@@ -67,16 +68,18 @@ it.each(["exit", "signal", "exit75"] as const)(
           termination === "signal"
             ? 'process.kill(process.pid, "SIGTERM")'
             : `process.exit(${termination === "exit75" ? 75 : 1})`;
+        const child = spawn(
+          process.execPath,
+          [
+            "-e",
+            `process.stdout.write(${JSON.stringify(stdout)}, () => process.stderr.write(${JSON.stringify(stderr)}, () => ${stop}));`,
+          ],
+          { stdio: ["ignore", "pipe", "pipe"] },
+        );
+        acquireProviderProcessObservation(child);
         return Promise.resolve(
           ok({
-            process: spawn(
-              process.execPath,
-              [
-                "-e",
-                `process.stdout.write(${JSON.stringify(stdout)}, () => process.stderr.write(${JSON.stringify(stderr)}, () => ${stop}));`,
-              ],
-              { stdio: ["ignore", "pipe", "pipe"] },
-            ),
+            process: child,
             ownsProcessLifetime: false as const,
             providerLifetime: "external-application" as const,
             shutdownMode: "bridge-request" as const,
@@ -124,11 +127,13 @@ it.each([0, 1])(
   async (code) => {
     const launcher: BridgeLauncher = {
       launch() {
+        const child = spawn(process.execPath, ["-e", `process.exit(${code})`], {
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        acquireProviderProcessObservation(child);
         return Promise.resolve(
           ok({
-            process: spawn(process.execPath, ["-e", `process.exit(${code})`], {
-              stdio: ["ignore", "pipe", "pipe"],
-            }),
+            process: child,
             ownsProcessLifetime: true as const,
             providerLifetime: "launcher-process" as const,
             shutdownMode: "bridge-request" as const,
@@ -157,16 +162,18 @@ it("preserves a successful helper's diagnostics when bridge readiness is never o
   const launcher: BridgeLauncher = {
     launch(session) {
       token = session.token;
+      const child = spawn(
+        process.execPath,
+        [
+          "-e",
+          `process.stdout.write(${JSON.stringify("source=local-evidence ")} + ${JSON.stringify(session.token)}); process.stderr.write("loader callback pending");`,
+        ],
+        { stdio: ["ignore", "pipe", "pipe"] },
+      );
+      acquireProviderProcessObservation(child);
       return Promise.resolve(
         ok({
-          process: spawn(
-            process.execPath,
-            [
-              "-e",
-              `process.stdout.write(${JSON.stringify("source=local-evidence ")} + ${JSON.stringify(session.token)}); process.stderr.write("loader callback pending");`,
-            ],
-            { stdio: ["ignore", "pipe", "pipe"] },
-          ),
+          process: child,
           ownsProcessLifetime: false as const,
           providerLifetime: "external-application" as const,
           shutdownMode: "bridge-request" as const,

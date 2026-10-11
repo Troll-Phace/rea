@@ -153,6 +153,8 @@ L'inspection statique JavaScript et .NET lit les fichiers fournis sans exécuter
 
 Les formats natifs et les hôtes pris en charge varient selon le fournisseur. Consultez [la configuration de Hopper et Ghidra](docs/installation.md#hopper), le [guide IDA](docs/ida-provider.md) et [la prise en charge expérimentale de Ghidra sous Windows](docs/windows-ghidra-p0.md). Ghidra prend aussi en charge [l'analyse DOS 16 bits](docs/ghidra-dos.md). Pour les gros binaires, augmentez son délai de démarrage avec `REA_GHIDRA_STARTUP_TIMEOUT_MS`. Pour le choix du fournisseur, consultez le [guide CLI](docs/cli.md#choose-a-provider). Vérifiez la [disponibilité dans les versions publiées](docs/installation.md#released-package-and-main) pour les fonctionnalités ajoutées depuis la dernière version npm.
 
+PS-X EXE (Ghidra): [guide](docs/ghidra-psx.md).
+
 ## Études de cas
 
 [![Illustrations des études sur la spatialisation sonore de DX-Ball, le pont du presse-papiers de Notion et le cercle de projectiles de TH04](docs/assets/rea-showcases.png)](https://rea.tools/showcase/)

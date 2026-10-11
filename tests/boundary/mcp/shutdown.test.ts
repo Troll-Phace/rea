@@ -11,6 +11,7 @@ import { err, ok } from "../../../src/domain/result.js";
 import { observed } from "../../fixtures/analysisExecution.js";
 import {
   createBinarySessionTargets,
+  createDeferred,
   createTestBinarySession,
 } from "../../fixtures/binarySession.js";
 
@@ -208,4 +209,186 @@ it("retries only failed cleanup owners after concurrent shutdown requests", asyn
   expect([handleCalls, androidCalls, sessionCalls, unregisterCount]).toEqual([
     2, 2, 1, 1,
   ]);
+});
+
+const shutdownDependencies = () => {
+  const requests: Array<() => void> = [];
+  let unregistered = 0;
+  const dependencies: RuntimeDependencies = {
+    env: {},
+    serve: () => {
+      throw new Error("unused test transport");
+    },
+    writeStderr: () => undefined,
+    setExitCode: () => undefined,
+    registerShutdown: (request) => {
+      requests.push(request);
+      return () => {
+        unregistered += 1;
+      };
+    },
+  };
+  return { dependencies, requests, unregisterCount: () => unregistered };
+};
+
+it("waits for every provider stage before inspector close and coalesces concurrent requests", async () => {
+  const events: string[] = [];
+  const transportRelease = createDeferred<void>();
+  const androidRelease = createDeferred<void>();
+  const entered = createDeferred<void>();
+  const state = shutdownDependencies();
+  let inspectorCalls = 0;
+  const lifecycle = createShutdown({
+    handle: {
+      close: async () => {
+        events.push("transport-close");
+        entered.resolve();
+        await transportRelease.promise;
+        events.push("transport-settled");
+      },
+    },
+    closeAndroid: async () => {
+      events.push("android-close");
+      await androidRelease.promise;
+      events.push("android-settled");
+    },
+    session: createManagedBinarySession(),
+    dependencies: state.dependencies,
+    serverLogger: pino({ enabled: false }),
+    closeProcessOwnership: async () => {
+      inspectorCalls += 1;
+      events.push("inspector-close");
+    },
+  });
+  const first = lifecycle.shutdown();
+  const concurrent = lifecycle.shutdown();
+  await entered.promise;
+  expect(inspectorCalls).toBe(0);
+  transportRelease.resolve();
+  await new Promise((resolve) => setImmediate(resolve));
+  expect(inspectorCalls).toBe(0);
+  expect(state.unregisterCount()).toBe(0);
+  androidRelease.resolve();
+  await Promise.all([first, concurrent]);
+  expect(events.indexOf("inspector-close")).toBeGreaterThan(
+    events.indexOf("android-settled"),
+  );
+  expect(events.indexOf("inspector-close")).toBeGreaterThan(
+    events.indexOf("transport-settled"),
+  );
+  expect(inspectorCalls).toBe(1);
+  expect(state.unregisterCount()).toBe(1);
+  expect(lifecycle.unresolvedOwners).toEqual([]);
+});
+
+it("retains provider authority on failure and closes the inspector only after provider retry", async () => {
+  const failure = new Error("provider cleanup denied");
+  const state = shutdownDependencies();
+  let providerCalls = 0;
+  let inspectorCalls = 0;
+  const lifecycle = createShutdown({
+    handle: {
+      close: async () => {
+        providerCalls += 1;
+        if (providerCalls === 1) throw failure;
+      },
+    },
+    session: createManagedBinarySession(),
+    dependencies: state.dependencies,
+    serverLogger: pino({ enabled: false }),
+    closeProcessOwnership: async () => {
+      inspectorCalls += 1;
+    },
+  });
+  await expect(lifecycle.shutdown()).rejects.toBe(failure);
+  expect(inspectorCalls).toBe(0);
+  expect(lifecycle.failures).toContain(failure);
+  expect(lifecycle.unresolvedOwners.map(({ id }) => id)).toEqual([
+    "mcp-transport",
+    "process-inspector",
+  ]);
+  expect(state.unregisterCount()).toBe(0);
+  await lifecycle.shutdown();
+  expect([providerCalls, inspectorCalls, state.unregisterCount()]).toEqual([
+    2, 1, 1,
+  ]);
+  expect(lifecycle.failures).toContain(failure);
+});
+
+it("retries a rejected inspector without reclosing completed providers or losing earlier causes", async () => {
+  const state = shutdownDependencies();
+  const primary = new Error("startup primary failure");
+  const providerFailure = new Error("startup provider cleanup failure");
+  const inspectorFailure = new Error("inspector root removal denied");
+  let providerCalls = 0;
+  let inspectorCalls = 0;
+  const lifecycle = createShutdown({
+    session: createManagedBinarySession(),
+    dependencies: state.dependencies,
+    serverLogger: pino({ enabled: false }),
+    providerCleanup: {
+      primary,
+      failures: [providerFailure],
+      owners: [
+        {
+          id: "retained-startup-provider",
+          closed: false,
+          close: async () => {
+            providerCalls += 1;
+          },
+        },
+      ],
+    },
+    closeProcessOwnership: async () => {
+      inspectorCalls += 1;
+      if (inspectorCalls === 1) throw inspectorFailure;
+    },
+  });
+  await expect(lifecycle.shutdown()).rejects.toBe(inspectorFailure);
+  expect(lifecycle.unresolvedOwners.map(({ id }) => id)).toEqual([
+    "process-inspector",
+  ]);
+  expect(lifecycle.failures).toEqual([
+    primary,
+    providerFailure,
+    inspectorFailure,
+  ]);
+  expect(state.unregisterCount()).toBe(0);
+  await lifecycle.shutdown();
+  expect([providerCalls, inspectorCalls, state.unregisterCount()]).toEqual([
+    1, 2, 1,
+  ]);
+  expect(lifecycle.failures).toEqual([
+    primary,
+    providerFailure,
+    inspectorFailure,
+  ]);
+});
+
+it("keeps the inspector available across ordinary binary session open/close cycles", async () => {
+  const [target, other] = await createBinarySessionTargets();
+  const session = createTestBinarySession(() => ({
+    execute: async () => observed(null),
+    close: async () => ok(null),
+  }));
+  const state = shutdownDependencies();
+  let inspectorCalls = 0;
+  const lifecycle = createShutdown({
+    handle: { close: async () => undefined },
+    session,
+    dependencies: state.dependencies,
+    serverLogger: pino({ enabled: false }),
+    closeProcessOwnership: async () => {
+      inspectorCalls += 1;
+    },
+  });
+  for (const path of [target, other]) {
+    const opened = await session.open(path);
+    if (!opened.ok) throw opened.error;
+    const closed = await session.close();
+    if (!closed.ok) throw closed.error;
+    expect(inspectorCalls).toBe(0);
+  }
+  await lifecycle.shutdown();
+  expect(inspectorCalls).toBe(1);
 });

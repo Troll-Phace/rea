@@ -9,6 +9,7 @@ import {
   type WakaruLauncher,
 } from "./WakaruCommand.js";
 import { RECOVERY_LIMITS } from "./WakaruRelease.js";
+import { acquireProviderProcessObservation } from "../../process/ProviderProcess.js";
 
 it("names the Wakaru configuration requirement when it is not configured", async () => {
   const refusal: unknown = await resolveWakaruCommand({}).catch(
@@ -66,6 +67,8 @@ const commandFixture = (
 ) => {
   const producer = createProducer();
   const launcher: WakaruLauncher = async (options) => {
+    acquireProviderProcessObservation(producer, options.observation);
+    options.onAcquired?.(producer);
     setImmediate(() => emit(producer));
     return {
       process: producer,
@@ -75,7 +78,12 @@ const commandFixture = (
         processGroupId: 12345,
         expectedParentPid: process.pid,
       },
-      cleanup: async () => ({ cleaned: true, signaled: false }),
+      cleanup: async () => {
+        producer.stdout.end();
+        producer.stderr.end();
+        producer.emit("close", 0, null);
+        return { cleaned: true, signaled: false };
+      },
     };
   };
   return {

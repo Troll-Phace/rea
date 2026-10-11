@@ -395,6 +395,11 @@ export const createSystemProcessOwnershipHost = (
 
 export const systemProcessOwnershipHost = createSystemProcessOwnershipHost();
 
+/** Terminal caller owns ordering; this does not allocate or replace the inspector. */
+export const closeProcessOwnershipInspection = async (): Promise<void> => {
+  await systemProcessOwnershipHost.close?.();
+};
+
 /** Observe the current OS start identity for one live PID, when supported. */
 export const observeProcessStartIdentity = async (
   pid: number,

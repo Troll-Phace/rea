@@ -212,3 +212,33 @@ See [Phase 4 results](../../../docs/active/phase-4-results.md) for current proof
 and gate status. Native direct evidence does not establish public CLI/stdio MCP
 journeys, Linux, game acceptance, runtime correctness or installed-package and
 fresh-client discovery.
+
+Phase 5 adds `npm run verify:ghidra:psx`, the complete independent oracle through
+compiled CLI and actual SDK stdio MCP. Source and installed-package acceptance
+use the same `verifyPublicPsx` helper and separate executable/cwd identities.
+CLI image/instruction/call-target routes perform real one-shot imports; only
+supported function/search routes reuse an owned snapshot. Raw MCP inventory,
+assembly and directional references remain distinct from CLI searches/xrefs.
+The public lane also measures named advertised JSON schemas, four cache families,
+atomic identity/profile snapshot rejects, malformed/policy refusals and two
+allocation-coordinated SDK cancellation/disconnect cases. A completed request
+before cancellation is inconclusive. No live cache replay claims zero dispatch.
+
+Captures default to ignored `docs/psx-local/phase-5-public-runs/`. The helper
+requires a canonical empty dot-prefix-free owned workspace as exact TMPDIR:
+`GhidraSessionRoot.ts` otherwise falls back outside that root because Ghidra
+rejects dot-prefixed project path elements. Spaces/non-ASCII source names remain
+covered. Complete streams and fixed startup/provenance records are retained;
+credential descriptors are never opened, and recognized transport credentials
+or explicitly sensitive values are redacted with markers. Capture and close
+failures keep reports, exact roots and retry handles; cleanup retries do not
+erase the original failure.
+
+The separate `node scripts/verify-local-ghidra-psx.mjs --binary PATH` smoke uses
+only the explicit selected patched-AC3 source after current header/hash admission.
+It runs a bounded public image/entry/observed-function/decompile/reference and
+snapshot journey plus CLI image/entry checks. It never applies the synthetic
+oracle to game bytes. Typed unavailable facets keep a partial, failing outcome.
+All local raw data remains ignored. These implemented lanes require measured
+reports on each claimed host; deterministic harness tests and package inventory
+checks do not establish Linux, game, installed-provider or fresh-client success.

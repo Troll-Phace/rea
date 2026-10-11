@@ -165,6 +165,14 @@ class OwnedCodec {
         },
       },
     );
+    const observation = this.#supervisor.observation();
+    this.#processError ??=
+      observation.coverage !== "complete"
+        ? "Codec diagnostics before process acquisition are unavailable"
+        : observation.errors[0]?.message;
+    this.#oversized ||=
+      observation.observedBytes.stdout > WEB_SOURCE_MAP_LIMITS.outputBytes ||
+      observation.observedBytes.stderr > 1024 * 1024;
   }
 
   async collect(): Promise<string> {

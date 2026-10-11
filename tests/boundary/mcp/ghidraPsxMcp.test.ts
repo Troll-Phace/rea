@@ -1,6 +1,9 @@
 import { Ajv2020 } from "ajv/dist/2020.js";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseEvidence } from "../../../src/domain/evidence.js";
+import { toolContract } from "../../../src/contracts/toolContracts.js";
+import { parseEvidence, type Evidence } from "../../../src/domain/evidence.js";
 import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
 import { err, ok } from "../../../src/domain/result.js";
 import { GhidraSessionError } from "../../../src/ghidra/GhidraSessionError.js";
@@ -13,6 +16,588 @@ import {
   psxSimulatedOperation,
 } from "../../fixtures/ghidraPsxImport.js";
 import { parseMcpToolError } from "../../fixtures/mcpToolError.js";
+import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+
+type PublicBinding = {
+  operation: string;
+  parameters: Record<string, unknown>;
+  sourceDigest: string;
+  selectedProfile: unknown;
+};
+type PublicObservation = {
+  mode: string;
+  evidence: Evidence;
+  event_sequence: number;
+  run_id: string;
+};
+type LiveExpectations = {
+  observe(
+    evidence: Evidence,
+    binding: PublicBinding,
+    association: unknown,
+  ): PublicObservation;
+  live(binding: PublicBinding): PublicObservation;
+  freeze(bindings: PublicBinding[]): unknown;
+  observations(): PublicObservation[];
+};
+const publicVerifier = (await import(
+  new URL("../../../scripts/lib/real-ghidra-psx-public.mjs", import.meta.url)
+    .href
+)) as {
+  createPublicPsxLiveExpectations(): LiveExpectations;
+  assertPublicPsxMcpReplay(
+    replay: PublicObservation,
+    original: PublicObservation,
+    binding: PublicBinding,
+  ): void;
+  selectPublicPsxSnapshotEvidence(
+    execution: unknown,
+    binding: PublicBinding,
+  ): Evidence;
+  assertPublicPsxCliExecution(
+    evidence: Evidence,
+    binding: PublicBinding,
+    execution: unknown,
+    allocations: unknown[],
+  ): unknown;
+  publicPsxDigest(text: string): string;
+  publicPsxSnapshotLimitation: string;
+  publicPsxSnapshotQueries(
+    documents: unknown,
+  ): [string, Record<string, unknown>][];
+  assertPublicPsxSnapshotEntries(
+    snapshot: unknown,
+    queries: [string, Record<string, unknown>][],
+    observations: Evidence[],
+    binding: { sourceDigest: string; selectedProfile: unknown },
+  ): unknown;
+  compilePublicPsxSchemas(catalog: unknown): Map<string, unknown>;
+  createPublicPsxContext(input: unknown): unknown;
+  capturePublicPsxReply(
+    context: unknown,
+    reply: unknown,
+    operation: string,
+    schema: unknown,
+    options?: Record<string, unknown>,
+  ): Promise<Record<string, unknown>>;
+  assertPublicPsxImageAdmissionRefusal(
+    parsed: unknown,
+    operation: string,
+    parameters: unknown,
+    schema: unknown,
+  ): unknown;
+};
+
+/** Actual SDK/cache producers; the recording bridge is simulated, with no native-host claim. */
+const createRetainedSdkEvidenceControl = async () => {
+  const harness = await connectPsxOperationMcp();
+  try {
+    const state = async () =>
+      toolContract("binary_session").outputSchema.parse(
+        (await harness.mcp.callTool({ name: "binary_session", arguments: {} }))
+          .structuredContent,
+      ).result;
+    const firstState = await state();
+    const profile = firstState.analysis_provider_binding!.analysis_profile;
+    const bindings = ["0x80010000", "0x80010080"].map((procedure) => ({
+      operation: "analyze_function",
+      parameters: { procedure },
+      sourceDigest: psxFixtureSha256(psxInstructionFlowBytes()),
+      selectedProfile: profile,
+    }));
+    const collection = publicVerifier.createPublicPsxLiveExpectations();
+    let sequence = 0;
+    const request = async (binding: PublicBinding) => {
+      const reply = await harness.mcp.callTool({
+        name: binding.operation,
+        arguments: binding.parameters,
+      });
+      if (reply.isError) throw new Error(JSON.stringify(reply));
+      const evidence = parseEvidence(reply.structuredContent);
+      const current = await state();
+      const runId = current.analysis_run!.run_id;
+      return collection.observe(evidence, binding, {
+        event_sequence: ++sequence,
+        run_id: runId,
+        capture: {
+          run_id: runId,
+          runtime_root: harness.fixture.root,
+          records: {},
+          simulated_bridge: true,
+        },
+      });
+    };
+    const first = [];
+    for (const binding of bindings) first.push(await request(binding));
+    collection.freeze(bindings);
+    const beforeRepeat = structuredClone(harness.recording.queries);
+    const repeated = [];
+    for (const binding of bindings) repeated.push(await request(binding));
+    expect(harness.recording.queries).toEqual(beforeRepeat);
+    const saved = harness.session.exportAnalysisSnapshot();
+    if (!saved.ok) throw saved.error;
+    const closed = await harness.mcp.callTool({
+      name: "close_binary",
+      arguments: {},
+    });
+    if (closed.isError) throw new Error(JSON.stringify(closed));
+    const imported = harness.session.importAnalysisSnapshot(saved.value);
+    if (!imported.ok) throw imported.error;
+    const opened = await harness.mcp.callTool({
+      name: "open_binary",
+      arguments: { path: harness.fixture.source, provider_id: "ghidra" },
+    });
+    if (opened.isError) throw new Error(JSON.stringify(opened));
+    const beforeReplay = structuredClone(harness.recording.queries);
+    const reopened = [];
+    for (const binding of bindings) reopened.push(await request(binding));
+    const refused = await harness.mcp.callTool({
+      name: "inspect_native_load_image",
+      arguments: { document: "forbidden" },
+    });
+    expect(refused.isError).toBe(true);
+    const postNegative = [];
+    for (const binding of bindings) postNegative.push(await request(binding));
+    expect(harness.recording.queries).toEqual(beforeReplay);
+    const text = JSON.stringify(saved.value);
+    return {
+      harness,
+      bindings,
+      collection,
+      first,
+      repeated,
+      reopened,
+      postNegative,
+      saved: saved.value,
+      execution: {
+        mode: "snapshot-evidence",
+        snapshot: {
+          path: join(harness.fixture.root, "owned-sdk-snapshot.json"),
+          text,
+          sha256: publicVerifier.publicPsxDigest(text),
+        },
+        target: saved.value.target,
+      },
+    };
+  } catch (error) {
+    await harness.close();
+    throw error;
+  }
+};
+
+describe("P5-R4 actual SDK live ownership and persisted function Evidence", () => {
+  it("retains first live records across real same-session cache, reopen and post-refusal observations without dispatch (simulated bridge)", async () => {
+    const control = await createRetainedSdkEvidenceControl();
+    try {
+      const { bindings, collection, first, repeated, reopened, postNegative } =
+        control;
+      expect(collection.observations()).toHaveLength(8);
+      for (const [index, binding] of bindings.entries()) {
+        const original = first[index]!;
+        expect(original.mode).toBe("native");
+        expect(collection.live(binding)).toBe(original);
+        expect(Object.isFrozen(original.evidence)).toBe(true);
+        for (const records of [repeated, reopened, postNegative]) {
+          const replay = records[index]!;
+          expect(replay.mode).toBe("mcp-cache");
+          publicVerifier.assertPublicPsxMcpReplay(replay, original, binding);
+          const removed = structuredClone(replay);
+          removed.evidence.limitations = removed.evidence.limitations.filter(
+            (value) => value !== publicVerifier.publicPsxSnapshotLimitation,
+          );
+          expect(() =>
+            publicVerifier.assertPublicPsxMcpReplay(removed, original, binding),
+          ).toThrow();
+        }
+        expect(collection.live(binding).evidence).toEqual(original.evidence);
+        expect(() =>
+          collection.live({
+            ...binding,
+            parameters: { procedure: "0x80010004" },
+          }),
+        ).toThrow("Missing exact first live");
+        expect(() =>
+          collection.live({ ...binding, sourceDigest: "0".repeat(64) }),
+        ).toThrow("Missing exact first live");
+      }
+    } finally {
+      await control.harness.close();
+    }
+    expect(control.harness.recording.counts().closes).toBe(
+      control.harness.recording.counts().clients,
+    );
+  });
+});
+
+describe("P5-R4 actual SDK unchanged persisted function hits", () => {
+  it("selects both unchanged original function records through the production selector and admits zero-allocation CLI Evidence hits (simulated bridge)", async () => {
+    const control = await createRetainedSdkEvidenceControl();
+    try {
+      for (const [index, binding] of control.bindings.entries()) {
+        const execution = {
+          ...control.execution,
+          original: control.first[index]!,
+        };
+        const persisted = publicVerifier.selectPublicPsxSnapshotEvidence(
+          execution,
+          binding,
+        );
+        expect(persisted).toEqual(control.first[index]!.evidence);
+        expect(persisted.limitations).not.toContain(
+          publicVerifier.publicPsxSnapshotLimitation,
+        );
+        expect(
+          publicVerifier.assertPublicPsxCliExecution(
+            persisted,
+            binding,
+            execution,
+            [],
+          ),
+        ).toMatchObject({
+          mode: "snapshot-evidence",
+          original_evidence_id: persisted.evidence_id,
+        });
+        expect(() =>
+          publicVerifier.assertPublicPsxCliExecution(
+            control.reopened[index]!.evidence,
+            binding,
+            execution,
+            [],
+          ),
+        ).toThrow("exact original persisted Evidence");
+        expect(() =>
+          publicVerifier.assertPublicPsxCliExecution(
+            persisted,
+            binding,
+            { ...execution, original: control.reopened[index]! },
+            [],
+          ),
+        ).toThrow("original live owner");
+        expect(() =>
+          publicVerifier.assertPublicPsxCliExecution(
+            persisted,
+            binding,
+            execution,
+            [{ run_id: "unexpected-native" }],
+          ),
+        ).toThrow("unexpectedly allocated");
+        expect(() =>
+          publicVerifier.assertPublicPsxCliExecution(
+            persisted,
+            binding,
+            { mode: "native" },
+            [],
+          ),
+        ).toThrow("owned native runtime");
+        expect(() =>
+          publicVerifier.assertPublicPsxCliExecution(
+            persisted,
+            binding,
+            undefined,
+            [],
+          ),
+        ).toThrow("explicit execution mode");
+      }
+    } finally {
+      await control.harness.close();
+    }
+  });
+});
+
+describe("P5-R4 actual SDK persisted function refusal controls", () => {
+  it("denies persisted misses, changed bytes, query and selected profile without replacing retained Evidence (simulated bridge)", async () => {
+    const control = await createRetainedSdkEvidenceControl();
+    try {
+      const binding = control.bindings[0]!;
+      const original = control.first[0]!;
+      const before = JSON.stringify(original);
+      const execution = { ...control.execution, original };
+      expect(() =>
+        publicVerifier.selectPublicPsxSnapshotEvidence(
+          {
+            ...execution,
+            snapshot: { ...execution.snapshot, sha256: "0".repeat(64) },
+          },
+          binding,
+        ),
+      ).toThrow();
+      expect(() =>
+        publicVerifier.selectPublicPsxSnapshotEvidence(execution, {
+          ...binding,
+          parameters: { procedure: "0x80010004" },
+        }),
+      ).toThrow("hit missing");
+      expect(() =>
+        publicVerifier.selectPublicPsxSnapshotEvidence(execution, {
+          ...binding,
+          sourceDigest: "0".repeat(64),
+        }),
+      ).toThrow();
+      expect(() =>
+        publicVerifier.selectPublicPsxSnapshotEvidence(execution, {
+          ...binding,
+          selectedProfile: control.saved.binding.analysis_profile && {
+            ...control.saved.binding.analysis_profile,
+            digest: "0".repeat(64),
+          },
+        }),
+      ).toThrow();
+      expect(JSON.stringify(original)).toBe(before);
+      expect(control.collection.live(binding)).toBe(original);
+    } finally {
+      await control.harness.close();
+    }
+  });
+});
+
+const connectDeclaredProgramMcp = async (declaredDocument: string) => {
+  return connectPsxOperationMcp(async (operation, parameters) => {
+    if (operation === "list_documents") return ok([declaredDocument]);
+    if (operation === "inspect_native_load_image")
+      return ok(
+        jsonValueSchema.parse(
+          psxAppliedLoadImageObservation(psxInstructionFlowBytes()),
+        ),
+      );
+    if (parameters.document !== undefined && parameters.document !== null)
+      expect(parameters.document).toBe(declaredDocument);
+    const { document: _document, ...unscoped } = parameters;
+    return ok(psxSimulatedOperation(operation, unscoped));
+  });
+};
+
+describe("P5-R3 actual SDK explicitly scoped snapshot population", () => {
+  it("observes the declared Program, retains omitted selectors, and replays exact four scoped queries without dispatch (simulated bridge)", async () => {
+    const declaredDocument = "Declared Program 雪.v2";
+    const harness = await connectDeclaredProgramMcp(declaredDocument);
+    const request = async (
+      operation: string,
+      parameters: Record<string, unknown> = {},
+    ) => {
+      const reply = await harness.mcp.callTool({
+        name: operation,
+        arguments: parameters,
+      });
+      if (reply.isError) throw new Error(JSON.stringify(reply));
+      return parseEvidence(reply.structuredContent);
+    };
+    try {
+      const omitted = [
+        await request("inspect_native_instruction", { address: "0x80010008" }),
+        await request("resolve_native_call_targets", { address: "0x80010034" }),
+      ];
+      const originalBytes = JSON.stringify(omitted);
+      const initial = harness.session.exportAnalysisSnapshot();
+      if (!initial.ok) throw initial.error;
+      expect(initial.value.entries).toHaveLength(0);
+      expect(initial.value.evidence_bundle.records).toEqual(
+        expect.arrayContaining(omitted),
+      );
+      const discovery = await request("list_documents");
+      expect(discovery.normalized_result).toEqual([declaredDocument]);
+      const queries = publicVerifier.publicPsxSnapshotQueries(
+        discovery.normalized_result,
+      );
+      const populated: Evidence[] = [];
+      for (const [operation, parameters] of queries)
+        populated.push(await request(operation, parameters));
+      expect(populated[1]?.normalized_result).toEqual(
+        omitted[0]?.normalized_result,
+      );
+      expect(populated[2]?.normalized_result).toEqual(
+        omitted[1]?.normalized_result,
+      );
+      expect(populated[1]?.evidence_id).not.toBe(omitted[0]?.evidence_id);
+      expect(populated[2]?.evidence_id).not.toBe(omitted[1]?.evidence_id);
+      const saved = harness.session.exportAnalysisSnapshot();
+      if (!saved.ok) throw saved.error;
+      const binding = {
+        sourceDigest: psxFixtureSha256(psxInstructionFlowBytes()),
+        selectedProfile: populated[0]!.analysis_profile,
+      };
+      publicVerifier.assertPublicPsxSnapshotEntries(
+        saved.value,
+        queries,
+        populated,
+        binding,
+      );
+      expect(saved.value.entries).toHaveLength(4);
+      expect(
+        saved.value.entries.map(({ operation, parameters }) => [
+          operation,
+          parameters,
+        ]),
+      ).toEqual(expect.arrayContaining(queries));
+      expect(saved.value.evidence_bundle.records).toEqual(
+        expect.arrayContaining(omitted),
+      );
+      const wrongQueries = publicVerifier.publicPsxSnapshotQueries([
+        "Unobserved Program",
+      ]);
+      expect(() =>
+        publicVerifier.assertPublicPsxSnapshotEntries(
+          saved.value,
+          wrongQueries,
+          populated,
+          binding,
+        ),
+      ).toThrow();
+      const omittedQueries = structuredClone(queries);
+      omittedQueries[1]![1] = { address: "0x80010008" };
+      const omittedObservation = [...populated];
+      omittedObservation[1] = omitted[0]!;
+      expect(() =>
+        publicVerifier.assertPublicPsxSnapshotEntries(
+          saved.value,
+          omittedQueries,
+          omittedObservation,
+          binding,
+        ),
+      ).toThrow("exact query missing");
+      const missing = structuredClone(saved.value);
+      missing.entries = missing.entries.filter(
+        ({ operation }) => operation !== "resolve_native_call_targets",
+      );
+      expect(() =>
+        publicVerifier.assertPublicPsxSnapshotEntries(
+          missing,
+          queries,
+          populated,
+          binding,
+        ),
+      ).toThrow("exact query missing");
+      const closed = await harness.mcp.callTool({
+        name: "close_binary",
+        arguments: {},
+      });
+      if (closed.isError) throw new Error(JSON.stringify(closed));
+      const imported = harness.session.importAnalysisSnapshot(saved.value);
+      if (!imported.ok) throw imported.error;
+      const opened = await harness.mcp.callTool({
+        name: "open_binary",
+        arguments: { path: harness.fixture.source, provider_id: "ghidra" },
+      });
+      if (opened.isError) throw new Error(JSON.stringify(opened));
+      const beforeDiscovery = harness.recording.queries.length;
+      expect((await request("list_documents")).normalized_result).toEqual(
+        discovery.normalized_result,
+      );
+      expect(harness.recording.queries.slice(beforeDiscovery)).toEqual([
+        { operation: "list_documents", parameters: {} },
+      ]);
+      const beforeReplay = structuredClone(harness.recording.queries);
+      for (const [index, [operation, parameters]] of queries.entries()) {
+        const replay = await request(operation, parameters);
+        for (const field of [
+          "normalized_result",
+          "raw_result",
+          "parameters",
+          "subject",
+          "provider",
+          "analysis_profile",
+        ] as const)
+          expect(replay[field]).toEqual(populated[index]![field]);
+      }
+      expect(harness.recording.queries).toEqual(beforeReplay);
+      expect(JSON.stringify(omitted)).toBe(originalBytes);
+      for (const record of omitted)
+        expect(harness.session.evidenceById(record.evidence_id)).toEqual(
+          record,
+        );
+    } finally {
+      await harness.close();
+    }
+    expect(harness.recording.counts().closes).toBe(
+      harness.recording.counts().clients,
+    );
+  });
+});
+
+describe("P5-R2 actual SDK and production named registration admission", () => {
+  it("captures the strict image refusal without provider dispatch and then admits a valid query (simulated bridge)", async () => {
+    const harness = await connectPsxOperationMcp();
+    const parent = await createTestTempDirectory("psx-sdk-admission-");
+    const workspace = join(parent, "workspace");
+    await mkdir(workspace);
+    const events: { kind: string; [key: string]: unknown }[] = [];
+    const log = join(parent, "events.jsonl");
+    const context = publicVerifier.createPublicPsxContext({
+      executable: process.execPath,
+      prefixArgs: [],
+      environment: { TMPDIR: workspace },
+      workspace,
+      record: async (event: (typeof events)[number]) => {
+        await writeFile(log, `${JSON.stringify(event)}\n`, { flag: "a" });
+        events.push(event);
+      },
+    });
+    try {
+      const operation = "inspect_native_load_image";
+      const parameters = { document: "not-admitted" };
+      const catalog = await harness.mcp.listTools();
+      const advertised = catalog.tools.find((tool) => tool.name === operation);
+      if (!advertised) throw new Error("Missing named image schema");
+      const schema = publicVerifier
+        .compilePublicPsxSchemas({ tools: [advertised] })
+        .get(operation);
+      const before = structuredClone(harness.recording.queries);
+      const evidenceBefore = harness.session.evidenceBundleForSerialization();
+      const reply = await harness.mcp.callTool({
+        name: operation,
+        arguments: parameters,
+      });
+      const raw = JSON.stringify(reply);
+      const parsed = await publicVerifier.capturePublicPsxReply(
+        context,
+        reply,
+        operation,
+        schema,
+        { allowUnstructuredToolError: true },
+      );
+      expect(
+        publicVerifier.assertPublicPsxImageAdmissionRefusal(
+          parsed,
+          operation,
+          parameters,
+          schema,
+        ),
+      ).toMatchObject({ category: "sdk-input-validation-refusal" });
+      expect(harness.recording.queries).toEqual(before);
+      expect(harness.session.evidenceBundleForSerialization()).toEqual(
+        evidenceBefore,
+      );
+      expect(events.map((event) => event.kind)).toEqual([
+        "raw_result",
+        "observation",
+      ]);
+      expect(await readFile(log, "utf8")).toContain(raw);
+      expect(JSON.stringify(reply)).toBe(raw);
+      const valid = await harness.mcp.callTool({
+        name: operation,
+        arguments: {},
+      });
+      const success = await publicVerifier.capturePublicPsxReply(
+        context,
+        valid,
+        operation,
+        schema,
+      );
+      expect(success).not.toHaveProperty("tool_error");
+      expect(success.observation_sequence).toBe(4);
+      expect(parsed).not.toHaveProperty("observation_sequence");
+      expect(success.value).toMatchObject({ status: "verified" });
+      expect(harness.recording.queries.slice(before.length)).toContainEqual({
+        operation,
+        parameters: {},
+      });
+    } finally {
+      await harness.close();
+    }
+    expect(harness.recording.counts().closes).toBe(
+      harness.recording.counts().clients,
+    );
+  });
+});
 
 const cases = [
   [

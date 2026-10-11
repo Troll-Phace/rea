@@ -1,7 +1,6 @@
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { lstat, mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import { lstatSync, realpathSync, rmSync, type Stats } from "node:fs";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
@@ -88,6 +87,22 @@ interface ProcessReaderCompilation {
   settled: boolean;
 }
 
+interface CompilerTemporaryOwner {
+  readonly path: string;
+  readonly base: string;
+  identity?: { readonly device: number; readonly inode: number };
+}
+
+interface CompilerTemporaryFiles {
+  readonly realpath: (path: string) => Promise<string>;
+  readonly mkdtemp: (prefix: string) => Promise<string>;
+  readonly lstat: (path: string) => Promise<Stats>;
+  readonly rm: (
+    path: string,
+    options: { readonly recursive: true; readonly force: true },
+  ) => Promise<void>;
+}
+
 const abortReason = (signal: AbortSignal): unknown => {
   if (signal.reason !== undefined) return signal.reason;
   const error = new Error("The operation was aborted");
@@ -126,9 +141,20 @@ const waitForCompilation = async (
 
 /** Compile and retain the narrow Darwin sysctl reader for this REA process. */
 export const createDarwinProcessRunTokenReader = (
-  options: { readonly xcrun?: string } = {},
+  options: {
+    readonly xcrun?: string;
+    /** Fault individual filesystem boundaries without changing the base policy. */
+    readonly temporaryFiles?: Partial<CompilerTemporaryFiles>;
+  } = {},
 ) => {
-  let root: string | undefined;
+  const files: CompilerTemporaryFiles = {
+    realpath,
+    mkdtemp,
+    lstat,
+    rm,
+    ...options.temporaryFiles,
+  };
+  let root: CompilerTemporaryOwner | undefined;
   let executable: string | undefined;
   let compilation: ProcessReaderCompilation | undefined;
   let closePromise: Promise<void> | undefined;
@@ -136,30 +162,118 @@ export const createDarwinProcessRunTokenReader = (
   let exitCleanupInstalled = false;
 
   const cleanupAtExit = () => {
-    if (root !== undefined) rmSync(root, { recursive: true, force: true });
+    // Exit cleanup cannot await compiler settlement and is never proof of it.
+    // Even best effort must not erase a replacement directory or symlink.
+    if (
+      root?.identity === undefined ||
+      (compilation !== undefined && !compilation.settled)
+    )
+      return;
+    try {
+      const current = lstatSync(root.path);
+      if (
+        current.isDirectory() &&
+        !current.isSymbolicLink() &&
+        realpathSync(root.path) === root.path &&
+        current.dev === root.identity.device &&
+        current.ino === root.identity.inode
+      )
+        rmSync(root.path, { recursive: true, force: true });
+    } catch {
+      // The awaited close owner retains failures; exit is best effort only.
+    }
+  };
+  const observeRoot = async (target: CompilerTemporaryOwner) => {
+    if (target.identity === undefined)
+      throw new Error("Darwin compiler temporary generation is unverified");
+    let current;
+    try {
+      current = await files.lstat(target.path);
+    } catch (cause: unknown) {
+      if (
+        !(cause instanceof Error) ||
+        !("code" in cause) ||
+        cause.code !== "ENOENT"
+      )
+        throw cause;
+    }
+    if (current !== undefined) {
+      if (
+        !current.isDirectory() ||
+        current.isSymbolicLink() ||
+        dirname(target.path) !== target.base ||
+        current.dev !== target.identity.device ||
+        current.ino !== target.identity.inode ||
+        (await files.realpath(target.path)) !== target.path
+      )
+        throw new Error("Darwin compiler temporary generation changed");
+    }
+    return current;
   };
   const cleanupRoot = async (target = root): Promise<void> => {
     if (target === undefined) return;
-    await rm(target, { recursive: true, force: true });
-    if (root !== target) return;
-    root = undefined;
-    executable = undefined;
-    if (exitCleanupInstalled) process.removeListener("exit", cleanupAtExit);
-    exitCleanupInstalled = false;
+    if ((await observeRoot(target)) !== undefined)
+      await files.rm(target.path, { recursive: true, force: true });
+    try {
+      await files.lstat(target.path);
+    } catch (cause: unknown) {
+      if (
+        cause instanceof Error &&
+        "code" in cause &&
+        cause.code === "ENOENT"
+      ) {
+        if (root !== target) return;
+        root = undefined;
+        executable = undefined;
+        if (exitCleanupInstalled) process.removeListener("exit", cleanupAtExit);
+        exitCleanupInstalled = false;
+        return;
+      }
+      throw cause;
+    }
+    throw new Error("Darwin compiler temporary removal is incomplete");
   };
   const runCompilation = async (signal: AbortSignal): Promise<string> => {
-    let operationRoot: string | undefined;
+    let operationRoot: CompilerTemporaryOwner | undefined;
     try {
-      operationRoot = await mkdtemp(join(tmpdir(), "rea-process-token-"));
+      // This internal compiler artifact has its own OS temporary owner. Caller
+      // analysis TMPDIR/cwd remain unchanged, including Unicode source paths.
+      const base = await files.realpath("/tmp");
+      if (!isAbsolute(base) || !(await files.lstat(base)).isDirectory())
+        throw new Error("Darwin compiler temporary base is not a directory");
+      const path = await files.mkdtemp(join(base, "rea-process-token-"));
+      if (
+        dirname(path) !== base ||
+        !basename(path).startsWith("rea-process-token-") ||
+        basename(path) === "rea-process-token-"
+      )
+        throw new Error(
+          "Darwin compiler temporary allocation escaped its base",
+        );
+      operationRoot = { path, base };
       root = operationRoot;
       process.once("exit", cleanupAtExit);
       exitCleanupInstalled = true;
+      const generation = await files.lstat(path);
+      operationRoot.identity = {
+        device: generation.dev,
+        inode: generation.ino,
+      };
+      if (
+        !generation.isDirectory() ||
+        generation.isSymbolicLink() ||
+        (generation.mode & 0o777) !== 0o700 ||
+        (await files.realpath(path)) !== path
+      )
+        throw new Error(
+          "Darwin compiler temporary root is not private/canonical",
+        );
       if (signal.aborted || closed) throw abortReason(signal);
-      const output = join(operationRoot, "reader");
+      const output = join(operationRoot.path, "reader");
       // swiftc keeps intermediate objects under TMPDIR, so keep them inside
       // the root that cleanup removes.
-      const compilerTemporary = join(operationRoot, "tmp");
-      await mkdir(compilerTemporary);
+      const compilerTemporary = join(operationRoot.path, "tmp");
+      await mkdir(compilerTemporary, { mode: 0o700 });
       const compilerEnvironment: NodeJS.ProcessEnv = {
         ...process.env,
         TMPDIR: compilerTemporary,
@@ -191,14 +305,22 @@ export const createDarwinProcessRunTokenReader = (
           { cause },
         );
       }
+      if ((await observeRoot(operationRoot)) === undefined)
+        throw new Error("Darwin compiler temporary root disappeared");
       if (signal.aborted || closed) throw abortReason(signal);
       executable = output;
       return output;
     } catch (cause: unknown) {
-      const ownsRoot = operationRoot !== undefined && root === operationRoot;
       if (operationRoot !== undefined) {
-        if (ownsRoot) await cleanupRoot(operationRoot);
-        else await rm(operationRoot, { recursive: true, force: true });
+        try {
+          await cleanupRoot(operationRoot);
+        } catch (cleanup: unknown) {
+          throw new AggregateError(
+            [cause, cleanup],
+            "Darwin compiler preparation and temporary cleanup failed",
+            { cause },
+          );
+        }
       }
       throw cause;
     }
@@ -226,7 +348,13 @@ export const createDarwinProcessRunTokenReader = (
     while (true) {
       if (closed) throw new Error("Darwin process token reader is closed");
       signal?.throwIfAborted();
-      if (executable !== undefined) return executable;
+      if (executable !== undefined) {
+        if (root === undefined || (await observeRoot(root)) === undefined)
+          throw new Error("Darwin compiler executable owner is unavailable");
+        if (closed) throw new Error("Darwin process token reader is closed");
+        signal?.throwIfAborted();
+        return executable;
+      }
       if (compilation === undefined && root !== undefined) {
         await cleanupRoot();
         continue;
@@ -238,13 +366,18 @@ export const createDarwinProcessRunTokenReader = (
         } catch (cause: unknown) {
           if (signal !== undefined && isExpectedAbort(cause, signal))
             throw cause;
+          if (root !== undefined) throw cause;
         }
         continue;
       }
       operation ??= beginCompilation();
       operation.waiters += 1;
+      let primary: unknown;
       try {
         return await waitForCompilation(operation.promise, signal);
+      } catch (cause: unknown) {
+        primary = cause;
+        throw cause;
       } finally {
         operation.waiters -= 1;
         if (
@@ -254,7 +387,20 @@ export const createDarwinProcessRunTokenReader = (
         ) {
           operation.aborting = true;
           operation.controller.abort();
-          await operation.promise.catch(() => undefined);
+          try {
+            await operation.promise;
+          } catch (cause: unknown) {
+            // An expected abort with successful rollback does not replace the
+            // waiter's reason. Failed rollback remains independently visible.
+            if (root !== undefined)
+              throw primary === undefined || primary === cause
+                ? cause
+                : new AggregateError(
+                    [primary, cause],
+                    "Darwin compiler cancellation and temporary cleanup failed",
+                    { cause: primary },
+                  );
+          }
         }
       }
     }
@@ -356,13 +502,27 @@ export const createDarwinProcessRunTokenReader = (
     if (closePromise !== undefined) return closePromise;
     closed = true;
     const pendingClose = (async () => {
+      let primary: unknown;
       const operation = compilation;
       if (operation !== undefined && !operation.settled) {
         operation.aborting = true;
         operation.controller.abort();
-        await operation.promise.catch(() => undefined);
+        await operation.promise.catch((cause: unknown) => {
+          if (root !== undefined) primary = cause;
+        });
       }
-      await cleanupRoot();
+      try {
+        await cleanupRoot();
+      } catch (cleanup: unknown) {
+        if (primary !== undefined)
+          throw new AggregateError(
+            [primary, cleanup],
+            "Darwin compiler close and temporary cleanup failed",
+            { cause: primary },
+          );
+        throw cleanup;
+      }
+      if (primary !== undefined) throw primary;
     })().catch((cause: unknown) => {
       if (closePromise === pendingClose) closePromise = undefined;
       throw cause;

@@ -1,4 +1,6 @@
+import { access, rm } from "node:fs/promises";
 import { expect, it, vi } from "vitest";
+import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
 
 import { snapshotRoots } from "../../../src/process/capture/FilesystemSnapshot.js";
 import { prepareProcessCapture } from "../../../src/process/capture/ProcessCaptureLifecycle.js";
@@ -38,8 +40,12 @@ it("prepares ownership inspection before snapshotting or allocating a target run
 
 it("cleans the temporary root when cancellation arrives during identity capture", async () => {
   const controller = new AbortController();
-  const temporaryRoot = "/temporary-capture-root";
-  const cleanup = vi.fn(async () => undefined);
+  const temporaryRoot = await createTestTempDirectory(
+    "rea-process-preparation-cancel-",
+  );
+  const cleanup = vi.fn(async (path: string) => {
+    await rm(path, { recursive: true, force: true });
+  });
   const host = {
     createTemporaryRoot: vi.fn(async () => temporaryRoot),
     captureOwnershipBaseline: vi.fn(async (signal?: AbortSignal) => {
@@ -68,4 +74,5 @@ it("cleans the temporary root when cancellation arrives during identity capture"
   ).rejects.toThrow(/cancelled/u);
   expect(host.captureOwnershipBaseline).toHaveBeenCalledWith(controller.signal);
   expect(cleanup).toHaveBeenCalledWith(temporaryRoot);
+  await expect(access(temporaryRoot)).rejects.toMatchObject({ code: "ENOENT" });
 });

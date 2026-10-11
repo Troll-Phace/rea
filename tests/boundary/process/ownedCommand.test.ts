@@ -7,7 +7,10 @@ import {
   OwnedCommandFailure,
   runOwnedCommand,
 } from "../../../src/process/OwnedCommand.js";
-import { spawnOwnedProviderProcess } from "../../../src/process/ProviderProcess.js";
+import {
+  acquireProviderProcessObservation,
+  spawnOwnedProviderProcess,
+} from "../../../src/process/ProviderProcess.js";
 import { cleanupOwnedProcessGroup } from "../../../src/process/ProcessOwnership.js";
 import { prepareProcessOwnershipInspection } from "../../../src/process/ProcessOwnershipObservation.js";
 import { waitForProviderProcessReady } from "../../fixtures/providerProcess.js";
@@ -119,7 +122,9 @@ it("fails an accepted nonzero command when an output stream errors and cleans it
     request,
     { timeoutMs: 2_000, diagnosticBytes: 1024, acceptNonZeroExit: true },
     {
-      launcher: async () => {
+      launcher: async (input) => {
+        acquireProviderProcessObservation(child, input.observation);
+        input.onAcquired?.(child);
         setImmediate(() => {
           stdout.write("partial output");
           stdout.destroy(new Error("fixture read failure"));
@@ -244,4 +249,162 @@ it("preserves original command failure together with failed cleanup resource ide
     resources: expect.arrayContaining([request.runId]),
     snapshot: { exitCode: 2 },
   });
+});
+
+it("keeps actual owned-command cleanup authority after its public failure is caught", async () => {
+  const { ProcessCleanupScope, withProcessCleanupScope } =
+    await import("../../../src/process/ProcessCleanupScope.js");
+  const scope = new ProcessCleanupScope();
+  const request = command(
+    'process.stdout.write("primary-output"); process.stderr.write("primary-diagnostic"); process.exitCode=7',
+  );
+  let cleanupAllowed = false;
+  let cleanupCalls = 0;
+  let retainedFailure: OwnedCommandFailure | undefined;
+  await withProcessCleanupScope(scope, async () => {
+    try {
+      await runOwnedCommand(
+        request,
+        { timeoutMs: 2_000, diagnosticBytes: 1024 },
+        {
+          launcher: async (input) => {
+            const launched = await spawnOwnedProviderProcess(input);
+            return {
+              ...launched,
+              cleanup: async () => {
+                cleanupCalls += 1;
+                return cleanupAllowed
+                  ? cleanupOwnedProcessGroup(launched.ownership)
+                  : {
+                      cleaned: false as const,
+                      reason: "controlled command cleanup denied",
+                    };
+              },
+            };
+          },
+        },
+      );
+    } catch (cause: unknown) {
+      if (!(cause instanceof OwnedCommandFailure)) throw cause;
+      retainedFailure = cause;
+    }
+  });
+  expect(retainedFailure).toMatchObject({
+    reason: "process",
+    cleanupFailure: "controlled command cleanup denied",
+    snapshot: {
+      exitCode: 7,
+      stdout: { text: "primary-output" },
+      stderr: { text: "primary-diagnostic" },
+    },
+  });
+  expect(scope.owners).toHaveLength(1);
+  const failed = await scope.close();
+  expect(failed.settled).toBe(false);
+  expect(failed.unresolved).toEqual(scope.owners);
+  expect(failed.unresolved[0]?.identity.runId).toBe(request.runId);
+  cleanupAllowed = true;
+  const retry = await scope.close();
+  expect(retry).toMatchObject({
+    settled: true,
+    unresolved: [],
+    failures: expect.any(Array),
+  });
+  expect(retry.failures.length).toBeGreaterThan(0);
+  expect(cleanupCalls).toBe(3);
+  expect(retainedFailure?.snapshot?.stdout.text).toBe("primary-output");
+  expect(retainedFailure?.cleanupFailure).toBe(
+    "controlled command cleanup denied",
+  );
+});
+
+it("settles a successful real owned command once with both output streams intact", async () => {
+  const { ProcessCleanupScope, withProcessCleanupScope } =
+    await import("../../../src/process/ProcessCleanupScope.js");
+  const scope = new ProcessCleanupScope();
+  const request = command(
+    'process.stdout.write("stdout-final"); process.stderr.write("stderr-final")',
+  );
+  const snapshot = await withProcessCleanupScope(scope, () =>
+    runOwnedCommand(request, { timeoutMs: 2_000, diagnosticBytes: 1024 }),
+  );
+  expect(snapshot).toMatchObject({
+    exitCode: 0,
+    signal: null,
+    stdout: { text: "stdout-final" },
+    stderr: { text: "stderr-final" },
+  });
+  expect(scope.owners).toHaveLength(1);
+  expect(scope.owners[0]?.status).toBe("settled");
+  expect(await scope.close()).toMatchObject({
+    settled: true,
+    unresolved: [],
+    failures: [],
+  });
+});
+
+it("retains retry authority when cancellation and exact acquired-child cleanup both fail", async () => {
+  const { ProcessCleanupScope, withProcessCleanupScope } =
+    await import("../../../src/process/ProcessCleanupScope.js");
+  const scope = new ProcessCleanupScope();
+  const request = command(
+    'process.stdout.write("ready\\n"); setInterval(()=>{},1000)',
+  );
+  const controller = new AbortController();
+  let allowed = false;
+  let cleanupCalls = 0;
+  let pid: number | undefined;
+  const execution = withProcessCleanupScope(scope, () =>
+    runOwnedCommand(
+      request,
+      { timeoutMs: 5_000, diagnosticBytes: 1024 },
+      {
+        signal: controller.signal,
+        launcher: async (input) => {
+          const launched = await spawnOwnedProviderProcess(input);
+          pid = launched.process.pid;
+          await waitForProviderProcessReady(launched.process);
+          setImmediate(() => controller.abort());
+          return {
+            ...launched,
+            cleanup: async () => {
+              cleanupCalls += 1;
+              return allowed
+                ? cleanupOwnedProcessGroup(launched.ownership)
+                : {
+                    cleaned: false as const,
+                    reason: "controlled cancellation cleanup denied",
+                  };
+            },
+          };
+        },
+      },
+    ),
+  );
+  try {
+    await expect(execution).rejects.toMatchObject({
+      reason: "cancelled",
+      cleanupFailure: "controlled cancellation cleanup denied",
+    });
+    const failed = await scope.close();
+    expect(failed.settled).toBe(false);
+    expect(failed.unresolved).toHaveLength(1);
+    allowed = true;
+    expect(await failed.unresolved[0]?.retry()).toMatchObject({
+      settled: true,
+    });
+    expect(await scope.close()).toMatchObject({
+      settled: true,
+      unresolved: [],
+    });
+    expect(cleanupCalls).toBe(3);
+    if (pid === undefined) throw new Error("no controlled child was acquired");
+    const acquiredPid = pid;
+    expect(() => process.kill(acquiredPid, 0)).toThrow();
+  } finally {
+    allowed = true;
+    controller.abort();
+    await Promise.allSettled([execution]);
+    await scope.close();
+  }
 });

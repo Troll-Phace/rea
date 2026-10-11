@@ -152,6 +152,8 @@ Kiểm tra tĩnh JavaScript và .NET đọc các tệp được cung cấp mà k
 
 Định dạng mã máy và nền tảng chạy REA được hỗ trợ khác nhau tùy trình phân tích. Xem [thiết lập Hopper và Ghidra](docs/installation.md#hopper), [hướng dẫn IDA](docs/ida-provider.md) và [hỗ trợ Ghidra thử nghiệm trên Windows](docs/windows-ghidra-p0.md). Ghidra cũng hỗ trợ [phân tích DOS 16 bit](docs/ghidra-dos.md). Để chọn trình phân tích, xem [hướng dẫn CLI](docs/cli.md#choose-a-provider). Kiểm tra [khả năng sử dụng theo bản phát hành](docs/installation.md#released-package-and-main) đối với tính năng được bổ sung sau phiên bản npm mới nhất.
 
+PS-X EXE (Ghidra): [hướng dẫn](docs/ghidra-psx.md).
+
 ## Các nghiên cứu điển hình
 
 [![Minh họa các ví dụ về cân bằng âm thanh DX-Ball, cầu nối bảng nhớ tạm Notion và vòng đạn TH04](docs/assets/rea-showcases.png)](https://rea.tools/showcase/)

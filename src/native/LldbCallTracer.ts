@@ -868,6 +868,7 @@ const runLldb = async (
       expectedCommand: executable,
       signal: deadline.signal,
       hostEnvironment: options.environment,
+      observation: { maxDiagnosticBytes: DIAGNOSTIC_BYTES },
     });
     supervisor = new ProviderProcessSupervisor(
       {
@@ -877,6 +878,10 @@ const runLldb = async (
       },
       { maxDiagnosticBytes: DIAGNOSTIC_BYTES },
     );
+    if (supervisor.observation().coverage !== "complete")
+      throw new Error(
+        "LLDB diagnostics before process acquisition are unavailable",
+      );
     let identityAckWritten = false;
     while (!(await supervisor.waitForOutputClose(20))) {
       const pid = await readTargetPid(options.pidPath);
@@ -901,6 +906,9 @@ const runLldb = async (
         return await finish({ kind: interruption });
       await waitForAbortableDelay(20, deadline.signal);
     }
+    const captureErrors = supervisor.observation().errors;
+    if (captureErrors.length !== 0)
+      throw new AggregateError(captureErrors, "LLDB diagnostic capture failed");
     const snapshot = supervisor.snapshot();
     const interruption = deadline.interruption;
     return await finish(

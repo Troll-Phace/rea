@@ -35,6 +35,19 @@ or absence:
 - `verify_reconstruction` evaluates a finite typed specification. A pass covers
   only declared comparable claims, not global equivalence.
 
+For PS-X EXE snapshots, keep the source digest, loader/assets, import policy,
+provenance method and flow interpretation bound together. Load-image inspection
+uses strict empty input; do not invent a document argument to save or replay it.
+For cached instruction or call-target queries, use the actual Program name
+returned by `list_documents` as the optional `document`; address-only results
+retain Evidence without those scoped cache entries. Preserve the snapshot
+limitation on MCP replay and the original execution identity on CLI snapshot hits.
+Retain named unknowns, original-loader observations and disclosed adaptation
+events. A matching static payload does not resolve runtime/overlay questions.
+Source workflows, installed artifacts and fresh-client discovery each need
+their own evidence; see the
+[PSX guide](https://github.com/Troll-Phace/rea/blob/main/docs/ghidra-psx.md).
+
 Process captures are opt-in behavioral evidence, not a security sandbox. V3
 captures cannot be upgraded to V4; rerun the original scenario. Distinguish root
 exit from descendant settlement and require freshness when the task needs it.
