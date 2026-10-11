@@ -2,7 +2,7 @@
 
 ## Identity and authority
 
-Batch: `psx-support-2026-10`. Phase: 5. Revision: P5-R0 with bounded P5-R1/P5-R2/P5-R3/P5-R4/P5-R5/P5-R6/P5-R7/P5-R8/P5-R9/P5-R10/P5-R11/P5-R12 below, 2026-10-10. Umbrella: PSX-005. Status: **technical acceptance passed under user-approved P5-R18 macOS scope; PR/merge delivery pending**. The user authorized this reviewed contract on 2026-10-10 with “You can execute the Phase 5 plan when ready.” Authority includes scoped implementation, synthetic public/provider verification, isolated project-tarball installation, explicit local patched-AC3 smoke and delivery through a reviewable PR after required gates. Provider/global software installation and public package release remain excluded; merge requires approval of the concrete PR. No batch rollover applies. Phases 1–4 are complete through approved merges; PSX-008 and PSX-010 remain deferred nonblocking coverage gaps.
+Batch: `psx-support-2026-10`. Phase: 5. Revision: P5-R0 with bounded P5-R1/P5-R2/P5-R3/P5-R4/P5-R5/P5-R6/P5-R7/P5-R8/P5-R9/P5-R10/P5-R11/P5-R12 below, 2026-10-10. Umbrella: PSX-005. Status: **complete; technical acceptance and approved verified PR #5 merge pass under P5-R18 macOS scope**. The user authorized this reviewed contract on 2026-10-10 with “You can execute the Phase 5 plan when ready.” Authority includes scoped implementation, synthetic public/provider verification, isolated project-tarball installation, explicit local patched-AC3 smoke and delivery through a reviewable PR after required gates. Provider/global software installation and public package release remain excluded; merge requires approval of the concrete PR. No batch rollover applies. Phases 1–4 are complete through approved merges; PSX-008 and PSX-010 remain deferred nonblocking coverage gaps.
 
 Repository: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea`. Shared contract: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea/docs/active/phase-5-plan.md`. Every implementor and reviewer must read this file before work. Planner owns this file only; orchestrator reviews its saved contents and owns links, state, integration and delivery. Preserve others' changes.
 
@@ -12,7 +12,7 @@ Planning observed clean `main`, HEAD and local `origin/main` at `d35f97c314cfb3f
 
 On 2026-10-10 the user stated: “i dont really care about linux implementation. we can remove that as a completion gate”. This direct instruction removes public Linux G2 and the Linux installed-package portion of G3 from Phase 5 completion criteria. Required host acceptance is macOS G1 and macOS installed G3; G4, all three actual G5 scenarios, G6 and G7 remain required. Linux stays explicitly unverified and is not inferred from macOS. No Linux implementation removal, provisioning, new platform claims or CI bypass is authorized or needed. Historical checkpoints and failed reports keep their original status. This scope amendment requires no production change; root owns its integration and readback.
 
-All required local technical gates and bounded reviews pass; full Phase 5/PSX-005 closure still requires the concrete PR and approved verified merge. Fresh-client bundle version, trust transition, source-harness discovery/lifecycle and independent OS cleanup remain separately unobserved, as recorded in the results.
+All required local technical gates and bounded reviews pass; user-approved PR #5 merge satisfies G7 and closes Phase 5/PSX-005. Fresh-client bundle version, trust transition, source-harness discovery/lifecycle and independent OS cleanup remain separately unobserved, as recorded in the results.
 
 ## Required outcome and fixed boundaries
 
@@ -1031,3 +1031,9 @@ Linux remains required and unavailable; do not ask again or infer it from macOS.
 P5-R18 orchestrator readback: current scope, gate table and links reconciled; all required macOS technical acceptance is satisfied. Concrete PR delivery and separately authorized merge remain pending. Earlier Linux-blocked checkpoints are historical.
 
 P5-R18 delivery checkpoint: implementation commit `439f56c77e3fa9d85f2d668c3f9d625996ea077f` pushed and [PR #5](https://github.com/Troll-Phace/rea/pull/5) open/attached. Normal hooks and post-autofix affected controls/static pass; results preserve exact measured candidate identities. User-requested acceptance project removal is completed with a private complete archive and exact receipt; outside app-managed runtime resources remain retained. Concrete approval/current-head checks/merge are pending.
+
+## Approved merge closure
+
+User-approved [PR #5](https://github.com/Troll-Phace/rea/pull/5) merged at `1205e45502fe436ce05aff9601402da5b1951b00` on `2026-10-11T00:51:57Z` (2026-10-10 in the client timezone). Phase 5 and PSX-005 are complete under P5-R18 macOS scope; Linux remains optional/unverified. All five batch phases are complete; PSX-008/PSX-010 remain deferred nonblocking coverage items. No batch rollover or new phase is started.
+
+Approved head `23cd442dde2a7197af405e01fd128cd6621a3b6d` passes fresh final static/generated-document checks; GitHub confirms MERGED after normal exact-head merge. Historical pending/failed checkpoints above retain their original meaning and are superseded by this actual delivery result. Root reads back current status and performs only necessary documentation reconciliation on synchronized main.

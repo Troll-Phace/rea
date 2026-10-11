@@ -1,9 +1,8 @@
 # Phase 5 verification results
 
 Execution contract: [phase-5-plan.md](phase-5-plan.md), P5-R0 with bounded P5-R1/P5-R2/P5-R3/P5-R4/P5-R5/P5-R6/P5-R7/P5-R8/P5-R9/P5-R10/P5-R11/P5-R12/P5-R13/P5-R14/P5-R15/P5-R16/P5-R17/P5-R18, PSX-005.
-The user authorized execution on 2026-10-10. Implementation and acceptance are
-in progress on `codex/psx-phase-5`, from reconciled `main`
-`d35f97c314cfb3f5a60f5ff00ce92b03a3784727`. Implementation commit `439f56c77e3fa9d85f2d668c3f9d625996ea077f` is pushed and [PR #5](https://github.com/Troll-Phace/rea/pull/5) is open. Full Phase 5 closure awaits concrete approval and verified merge.
+The user authorized execution on 2026-10-10. Implementation and acceptance were completed on `codex/psx-phase-5`, from reconciled `main`
+`d35f97c314cfb3f5a60f5ff00ce92b03a3784727`. Implementation commit `439f56c77e3fa9d85f2d668c3f9d625996ea077f` is delivered through user-approved [PR #5](https://github.com/Troll-Phace/rea/pull/5), merged at `1205e45502fe436ce05aff9601402da5b1951b00` on `2026-10-11T00:51:57Z`. Phase 5 is complete under P5-R18 macOS scope.
 
 ## Prerequisites and external gates
 
@@ -28,7 +27,7 @@ The user confirmed no Linux host is available and subsequently removed Linux fro
 | G4 local AC3          | Complete fresh macOS smoke passes       | All eight cases, five facets, snapshot, independently authenticated CLI image and exact CLI entry pass; no runtime/retail/Disc 2/overlay claim.                   |
 | G5 fresh client       | Three actual synthetic scenarios pass   | Exact installed artifact, distinct completed chats, 39 successful calls matched to full snapshot Evidence; separate unobserved harness/trust/OS lifecycle limits. |
 | G6 regressions/review | Required local renewals and review pass | Lifecycle/bookmark/local comparator controls and reviews, real producer/full image lanes, PSX import, DOS, COM and host-native renewal pass.                      |
-| G7 delivery           | pending                                 | Full required acceptance or explicit scope revision, then concrete PR approval.                                                                                   |
+| G7 delivery           | Passed; approved verified merge         | PR #5, approved head `23cd442d`, merge `1205e45502fe436ce05aff9601402da5b1951b00`; synchronized main and documentation reconciliation.                            |
 
 PSX-008 diagnostic truncation and PSX-010 Mach-O named non-entry-label coverage
 remain deferred and separate. Historical Phases 1–4 reports remain unchanged.
@@ -1013,3 +1012,9 @@ Implementation commit `439f56c77e3fa9d85f2d668c3f9d625996ea077f` is pushed to `o
 Normal precommit formatting/lint hooks make one source representation change in `CliCleanupScope`: `Promise.allSettled([...record.pending])` becomes `Promise.allSettled(record.pending)`. The private built-in Set is enumerated synchronously in both expressions before any asynchronous continuation, with identical promise inputs and settlement behavior. All ten actual cleanup-scope controls pass after the edit, as do renewed six-task static checks, 1326 module boundaries and 1018 architecture guards. The 96-path staging check excludes binaries/local payloads; all other precommit identities remain unchanged. Existing native/cold-installed/fresh-client reports retain the exact earlier candidate/tarball hashes; no newly built artifact is claimed to have that installed acceptance. This equivalent iterable simplification does not add a lifecycle behavior or platform claim.
 
 The user then explicitly asks to remove the temporary test project. Root rechecks the 22 preserved evidence files, archives the complete project privately (25 file/symlink entries with exact identities), and removes exactly `/private/tmp/rea-psx-client-nWJKWT/project`. Receipt `docs/psx-local/phase-5-client-runs/stage-OSRVHQ/project-removal-receipt.json` has SHA-256 `34c1f41ea063f27945e036f6d044c54e72229cf0fc8d57f526fdacc9a7847ad0`; original staging report and user records remain immutable in the private archive. The installed generated-skill symlink is preserved as a symlink. Process inspection observes app-owned MCP servers and recording workers; installed runtime/prefix/cache outside the requested project is retained. No process is signalled and complete OS process cleanup is not claimed. The earlier intentional-retention checkpoint is historical, superseded only for this requested project directory.
+
+## Approved merge and final closure
+
+User-approved [PR #5](https://github.com/Troll-Phace/rea/pull/5) merged at `1205e45502fe436ce05aff9601402da5b1951b00` on `2026-10-11T00:51:57Z` (2026-10-10 in the client timezone). Phase 5 and PSX-005 are complete under P5-R18 macOS scope; Linux remains optional/unverified. All five batch phases are complete; PSX-008/PSX-010 remain deferred nonblocking coverage items. No batch rollover or new phase is started.
+
+The approved final PR head `23cd442dde2a7197af405e01fd128cd6621a3b6d` passes renewed full static/typecheck/lint/module/format checks and architecture guards, plus generated documentation. GitHub reports CLEAN/MERGEABLE and no advertised remote status checks. The user's explicit “go ahead and merge” authorizes the concrete PR; normal `--merge --match-head-commit` completes without bypass, force push or auto-merge. GitHub independently confirms MERGED and the exact commit/time; local main is fast-forwarded to the merge before documentation-only closure reconciliation. Earlier failed runs, prior pending statuses and exact measured tarball/source identities remain historical and unchanged.

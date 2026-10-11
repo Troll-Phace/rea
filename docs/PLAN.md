@@ -1,10 +1,10 @@
 # PS-X EXE support — phased implementation plan
 
-Status: Phase 1 complete, accepted and merged through [PR #1](https://github.com/Troll-Phace/rea/pull/1); Phase 2 complete, accepted and merged through approved [PR #2](https://github.com/Troll-Phace/rea/pull/2); Phase 3 complete, accepted and merged through approved [PR #3](https://github.com/Troll-Phace/rea/pull/3); Phase 4 complete, accepted and merged through approved [PR #4](https://github.com/Troll-Phace/rea/pull/4). Phase 5 execution is authorized and in progress. Follow the phase delivery workflow through a reviewable PR; merging requires approval of that concrete PR. This document grants no new authority. Repository: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea`; fork `Troll-Phace/rea`, baseline handoff `7aa4d768`, package `6.3.0`.
+Status: Phase 1 complete, accepted and merged through [PR #1](https://github.com/Troll-Phace/rea/pull/1); Phase 2 complete, accepted and merged through approved [PR #2](https://github.com/Troll-Phace/rea/pull/2); Phase 3 complete, accepted and merged through approved [PR #3](https://github.com/Troll-Phace/rea/pull/3); Phase 4 complete, accepted and merged through approved [PR #4](https://github.com/Troll-Phace/rea/pull/4). Phase 5 complete, accepted and merged through approved [PR #5](https://github.com/Troll-Phace/rea/pull/5). All five phases are complete; no new batch has been requested. Follow the phase delivery workflow through a reviewable PR; merging requires approval of that concrete PR. This document grants no new authority. Repository: `/Users/anthonygrimaldi/Documents/VSCode-Projects/ac3-decomp/rea`; fork `Troll-Phace/rea`, baseline handoff `7aa4d768`, package `6.3.0`.
 
 ## Outcome and boundaries
 
-Support validated PS-X EXE executables through REA's existing Ghidra provider on macOS and Linux, preserving immutable executable snapshots, ephemeral databases, shared CLI/MCP semantics, provenance, and deterministic provider binding. Complete means tested detection, loader availability and identity, deterministic import, independent mapping/entry evidence, useful analysis operations including MIPS delay slots, snapshot/schema/package coverage, documentation, and separate real-provider host evidence.
+Support validated PS-X EXE executables through REA's existing Ghidra provider on macOS (Linux implementation remains unverified and is outside completion criteria under P5-R18), preserving immutable executable snapshots, ephemeral databases, shared CLI/MCP semantics, provenance, and deterministic provider binding. Complete means tested detection, loader availability and identity, deterministic import, independent mapping/entry evidence, useful analysis operations including MIPS delay slots, snapshot/schema/package coverage, documentation, and separate real-provider host evidence.
 
 Excluded: disc extraction, automatic overlay discovery/loading, arbitrary MIPS executable formats, emulator automation/runtime claims, GUI database attachment/sharing, and Windows PSX expansion. Never modify the Java 21 GUI wrapper to accommodate the separate Java 25 headless provider. Never commit user game bytes, extracted assets, Ghidra projects, or evidence containing executable payloads.
 
@@ -184,8 +184,7 @@ acceptance and fresh-client discovery. The user authorized execution of the
 reviewed contract on 2026-10-10. The user-approved P5-R18 scope removes Linux
 from completion criteria while preserving its unverified status. Required macOS
 source/installed, local patched-AC3, three actual fresh-client scenarios, native
-regressions and bounded reviews pass; Phase 5 and PSX-005 remain open for PR and
-approved merge delivery. [PR #5](https://github.com/Troll-Phace/rea/pull/5) is open; no merge approval yet. PSX-008 and PSX-010 remain deferred.
+regressions and bounded reviews pass; user-approved [PR #5](https://github.com/Troll-Phace/rea/pull/5) merged at `1205e45502fe436ce05aff9601402da5b1951b00` on `2026-10-11T00:51:57Z`. Phase 5 and PSX-005 are complete; PSX-008 and PSX-010 remain deferred.
 
 Objective: establish actual support with separated evidence lanes. Dependencies: Phase 4. Delivery endpoint: supported host/version matrix verified, packaging complete, source unchanged, no hidden live gates.
 

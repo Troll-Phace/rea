@@ -1,20 +1,20 @@
 # PSX issue ledger
 
 Canonical offline ledger. Batch psx-support-2026-10. Next ID: PSX-011.
-No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR #1; PSX-001 is closed. Phase 2 is complete through approved and verified [PR #2](https://github.com/Troll-Phace/rea/pull/2); PSX-002 is closed; PSX-006 is closed by the verified default-only production policy. Phase 3 is complete through approved [PR #3](https://github.com/Troll-Phace/rea/pull/3); PSX-003 is closed. PSX-007 is closed by measured adapted provenance and mutation evidence; Phase 4 is complete through approved and verified [PR #4](https://github.com/Troll-Phace/rea/pull/4); PSX-004 and PSX-009 are closed. Phase 5 execution is authorized and in progress.
+No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR #1; PSX-001 is closed. Phase 2 is complete through approved and verified [PR #2](https://github.com/Troll-Phace/rea/pull/2); PSX-002 is closed; PSX-006 is closed by the verified default-only production policy. Phase 3 is complete through approved [PR #3](https://github.com/Troll-Phace/rea/pull/3); PSX-003 is closed. PSX-007 is closed by measured adapted provenance and mutation evidence; Phase 4 is complete through approved and verified [PR #4](https://github.com/Troll-Phace/rea/pull/4); PSX-004 and PSX-009 are closed. Phase 5 is complete through approved and verified [PR #5](https://github.com/Troll-Phace/rea/pull/5); PSX-005 is closed. All five phases are complete under the user-approved P5-R18 macOS scope; Linux remains unverified.
 
-| ID      | Type    | Severity | Status      | Phase   | Title                                                 |
-| ------- | ------- | -------- | ----------- | ------- | ----------------------------------------------------- |
-| PSX-001 | feature | high     | closed      | 1       | Format and loader contract                            |
-| PSX-002 | feature | high     | closed      | 2       | Deterministic Ghidra PSX import                       |
-| PSX-003 | feature | high     | closed      | 3       | Independent memory and entry evidence                 |
-| PSX-004 | feature | medium   | closed      | 4       | MIPS queries and public contract parity               |
-| PSX-005 | test    | high     | in-progress | 5       | Real-provider, package and local acceptance           |
-| PSX-006 | bug     | high     | closed      | 2       | Installed PSX RAM option value-class mismatch         |
-| PSX-007 | feature | high     | closed      | 3       | Installed PSX loader lacks original file provenance   |
-| PSX-008 | test    | low      | open        | Backlog | PSX startup diagnostic truncation coverage gap        |
-| PSX-009 | bug     | medium   | closed      | 4       | Load-image snapshot cache requires forbidden document |
-| PSX-010 | test    | low      | open        | Backlog | Mach-O named non-entry-label native coverage          |
+| ID      | Type    | Severity | Status | Phase   | Title                                                 |
+| ------- | ------- | -------- | ------ | ------- | ----------------------------------------------------- |
+| PSX-001 | feature | high     | closed | 1       | Format and loader contract                            |
+| PSX-002 | feature | high     | closed | 2       | Deterministic Ghidra PSX import                       |
+| PSX-003 | feature | high     | closed | 3       | Independent memory and entry evidence                 |
+| PSX-004 | feature | medium   | closed | 4       | MIPS queries and public contract parity               |
+| PSX-005 | test    | high     | closed | 5       | Real-provider, package and local acceptance           |
+| PSX-006 | bug     | high     | closed | 2       | Installed PSX RAM option value-class mismatch         |
+| PSX-007 | feature | high     | closed | 3       | Installed PSX loader lacks original file provenance   |
+| PSX-008 | test    | low      | open   | Backlog | PSX startup diagnostic truncation coverage gap        |
+| PSX-009 | bug     | medium   | closed | 4       | Load-image snapshot cache requires forbidden document |
+| PSX-010 | test    | low      | open   | Backlog | Mach-O named non-entry-label native coverage          |
 
 ## PSX-001 — Format and loader contract
 
@@ -85,7 +85,7 @@ No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR 
 
 ## PSX-005 — Real-provider, package and local acceptance
 
-- Status: in-progress; type: test; severity: high; phase: 5.
+- Status: closed; type: test; severity: high; phase: 5.
 - Owner: orchestrator, with task delegation per PLAN.md.
 - Evidence: Astra/low saved the detailed [Phase 5 contract](active/phase-5-plan.md) on 2026-10-10 against clean `main` at `d35f97c314cfb3f5a60f5ff00ce92b03a3784727`, equal to local `origin/main` and the live remote main reference. Phase 3 verifies the adapted static payload and entry for the default-only import subset; Phase 4 verifies synthetic direct-provider MIPS instruction/function semantics. Phase 5 real public operation journeys, Linux, local patched-AC3, installed-tarball and fresh-client acceptance remain unperformed. This planning checkpoint grants no implementation or delivery authority.
 - Current checkpoint: user authorized the reviewed contract on 2026-10-10. P5-00 branch `codex/psx-phase-5` created from `d35f97c314cfb3f5a60f5ff00ce92b03a3784727`, preserving saved planning edits. Pinned Node 24.18.0/npm 11.16.0 and locked dependencies pass prerequisite checks; current host is macOS arm64 with existing Temurin 25.0.4.1. The user confirmed Linux unavailable; Linux G2/G3 stay pending. The user can run fresh-client scenarios when the package is ready; actual G5 remains pending. P5-11/P5-12 and P5-21 implementation is complete. Two preserved native attempts fail verifier assumptions; R1 then passes the full real MCP oracle before the SDK strict-input refusal exposes the R2 parser issue. Saved/reviewed R2 passes 80 focused controls and immutable actual-reply replay (SHA-256 `20d2a1faa45c5f238e603b246a6fea001e03f864e5e542b6ad0073f724977259`). Fresh R2 passes real oracle/refusals, then exposes missing instruction/call-target entries in the saved snapshot; report SHA-256 `54df1429b6136ad7d4a9475e7ea18c02d8af53ad9b98a3abf9ab1abdf6c4fa65` retains full cleanup. Saved/readback R3 corrects explicit snapshot request scope in public/local callers; 93 actual SDK/helper controls and immutable policy replay pass. Fresh R3 passes all four MCP cases then fails fresh CLI versus overwritten cached expectation; preserved report SHA-256 aac9f62cbda87a8ce4202e0e96ed0416f7d7b7ac11196a12c2a76baeceef9c9e has complete cleanup. Saved/readback R4 corrects live/replay and per-import image comparison ownership with source-grounded own-run checks. Complete G1 retry, installed/game/client gates, bounded review and delivery remain pending; see [Phase 5 results](active/phase-5-results.md).
@@ -156,15 +156,17 @@ No GitHub issue numbers are assigned. Phase 1 is complete and merged through PR 
 - G5 isolated exact installed artifact/original fixture/configuration is prepared and handed off; catalog-only preparation is not actual client acceptance. Report `50d4d5282374f6d115f7eec53366fa5a3eba2f91bc9a125ff521ec4ce73ceed3`. Actual fresh-client, affected existing native G6 renewals and required unavailable Linux remain pending.
 
 - Dependencies: Phase 4 accepted.
-- Done-criteria: Synthetic public CLI/MCP lanes, declared-host coverage, local patched-AC3 smoke, package/docs and final delivery gates satisfied; missing coverage explicitly blocks corresponding claims.
-- Tasks and exact verification contract: [shared Phase 5 plan](active/phase-5-plan.md), P5-00/P5-11/P5-12/P5-21/P5-31/P5-90; overview in PLAN.md. P5-R18 removes Linux from completion criteria; required macOS technical gates pass. Concrete PR and approved verified merge remain required; PSX-008/PSX-010 remain deferred independent coverage gaps.
-- Closure evidence/date/commit/PR: none.
+- Done-criteria: P5-R18 required macOS public CLI/MCP and installed-package coverage, selected local patched-AC3 smoke, actual fresh-client scenarios, package/docs, regression/review and approved verified delivery satisfied. Linux remains optional/unverified; no corresponding platform claim.
+- Tasks and exact verification contract: [shared Phase 5 plan](active/phase-5-plan.md), P5-00/P5-11/P5-12/P5-21/P5-31/P5-90; overview in PLAN.md. P5-R18 removes Linux from completion criteria; required macOS technical gates pass. Concrete PR and approved verified merge are satisfied; historical checkpoints below preserve prior pending states; PSX-008/PSX-010 remain deferred independent coverage gaps.
+- Closure evidence/date/commit/PR: closed 2026-10-10 (client timezone). Required technical acceptance and bounded reviews are recorded in [Phase 5 results](active/phase-5-results.md). Implementation `439f56c77e3fa9d85f2d668c3f9d625996ea077f`, approved final head `23cd442dde2a7197af405e01fd128cd6621a3b6d`; user-approved [PR #5](https://github.com/Troll-Phace/rea/pull/5) merged at `1205e45502fe436ce05aff9601402da5b1951b00` on `2026-10-11T00:51:57Z`. Current-head static/generated docs pass, normal merge confirmed remotely, local main synchronized. Linux stays unverified under P5-R18; PSX-008/PSX-010 remain separate deferred coverage gaps.
 
 - Final local acceptance checkpoint: renewed macOS G1, exact installed G3, selected patched AC3 G4 and all three actual fresh-client G5 scenarios pass. Required affected PSX import/DOS/COM/host-native renewals and bounded reviews pass; report digests, actual chat IDs, snapshot identities, cleanup and limits are retained in [Phase 5 results](active/phase-5-results.md#actual-fresh-client-g5-acceptance). User recordings and complete snapshot Evidence are independently reviewed; 39 actual staged MCP calls complete. Trust transition, desktop bundle version, source-harness lifecycle and independent fresh-client OS cleanup remain unobserved. Private evidence copies and user stage are retained. PSX-005 remains in-progress because required Linux G2/Linux G3 are unavailable and full delivery is pending. No Phase 5 commit/PR/merge or closure; PSX-008/PSX-010 remain separate deferred records.
 
 - P5-R18 scope/delivery checkpoint: user explicitly removes Linux from completion gates on 2026-10-10. Linux G2/Linux installed G3 remain unverified, optional coverage. All required macOS source/installed/local AC3/client/regression and bounded-review criteria pass. This record remains in-progress for final commit/PR and approved verified merge. Historical Phase 5 checkpoints are grouped under this record, preserving their original evidence and status. No Linux production or CI change and no inferred platform claim.
 
 - PR delivery checkpoint: implementation commit `439f56c77e3fa9d85f2d668c3f9d625996ea077f` pushed; [PR #5](https://github.com/Troll-Phace/rea/pull/5) open and attached. Normal hooks pass; the single equivalent precommit Set-iterable simplification passes all ten affected cleanup controls and renewed full static checks. Exact measured candidate/tarball identities remain preserved. User-requested test project is fully archived privately and removed with exact receipt; outside app-managed runtime resources remain retained. PSX-005 stays in-progress for concrete PR approval and verified merge; Linux remains optional/unverified.
+
+- Final closure checkpoint: User-approved [PR #5](https://github.com/Troll-Phace/rea/pull/5) merged at `1205e45502fe436ce05aff9601402da5b1951b00` on `2026-10-11T00:51:57Z` (2026-10-10 in the client timezone). Phase 5 and PSX-005 are complete under P5-R18 macOS scope; Linux remains optional/unverified. All five batch phases are complete; PSX-008/PSX-010 remain deferred nonblocking coverage items. No batch rollover or new phase is started.
 
 ## PSX-008 — PSX startup diagnostic truncation coverage gap
 
